@@ -21,7 +21,9 @@ services:
       - cursor_data:/home/dev-user/.cursor_data
       - dailybot_data:/home/dev-user/.dailybot_data
       - gh_data:/home/dev-user/.gh_data
+      # Host SSH keys (read-only). Entrypoint copies missing keys into ~/.ssh.
       - ${HOME}/.ssh:/home/dev-user/.ssh_host:ro
+      # Host git identity (user.name, user.email, aliases)
       - ${HOME}/.gitconfig:/home/dev-user/.gitconfig:ro
 
 volumes:

@@ -208,70 +208,61 @@ setup_dailybot_persistence_for_user "/home/dev-user"
 chown -R dev-user:dev-user /home/dev-user/.dailybot_data /home/dev-user/.config/dailybot 2>/dev/null || true
 
 # Setup SSH keys from host with correct permissions for a given user
-# This allows git operations with GitHub/GitLab
+# Host keys are mounted read-only at ~/.ssh_host (see docker-compose.yaml).
+# The container keeps its own ~/.ssh so git can update known_hosts and so
+# key permissions (600) are enforced inside the container.
 setup_ssh_keys_for_user() {
     USER_HOME="$1"
     SSH_HOST_DIR="${USER_HOME}/.ssh_host"
     SSH_DIR="${USER_HOME}/.ssh"
 
-    # Only setup if host SSH directory is mounted
-    if [ -d "${SSH_HOST_DIR}" ]; then
-        # Create SSH directory if it doesn't exist
-        mkdir -p "${SSH_DIR}"
-
-        # Check if SSH keys already exist in container
-        KEYS_EXIST=false
-        if [ -f "${SSH_DIR}/id_rsa" ] || [ -f "${SSH_DIR}/id_ed25519" ] || [ -f "${SSH_DIR}/id_ecdsa" ]; then
-            KEYS_EXIST=true
-        fi
-
-        # Only copy if keys don't exist yet (to avoid overwriting persistent volume)
-        if [ "$KEYS_EXIST" = false ]; then
-            echo "Setting up SSH keys from host for ${USER_HOME}..."
-
-            # Copy SSH keys from host
-            if [ -f "${SSH_HOST_DIR}/id_rsa" ]; then
-                cp "${SSH_HOST_DIR}/id_rsa" "${SSH_DIR}/id_rsa"
-                chmod 600 "${SSH_DIR}/id_rsa"
-                echo "  ✓ Copied id_rsa"
-            fi
-
-            if [ -f "${SSH_HOST_DIR}/id_ed25519" ]; then
-                cp "${SSH_HOST_DIR}/id_ed25519" "${SSH_DIR}/id_ed25519"
-                chmod 600 "${SSH_DIR}/id_ed25519"
-                echo "  ✓ Copied id_ed25519"
-            fi
-
-            if [ -f "${SSH_HOST_DIR}/id_ecdsa" ]; then
-                cp "${SSH_HOST_DIR}/id_ecdsa" "${SSH_DIR}/id_ecdsa"
-                chmod 600 "${SSH_DIR}/id_ecdsa"
-                echo "  ✓ Copied id_ecdsa"
-            fi
-
-            # Copy public keys
-            cp "${SSH_HOST_DIR}"/*.pub "${SSH_DIR}/" 2>/dev/null || true
-
-            # Copy config if exists
-            if [ -f "${SSH_HOST_DIR}/config" ]; then
-                cp "${SSH_HOST_DIR}/config" "${SSH_DIR}/config"
-                chmod 600 "${SSH_DIR}/config"
-                echo "  ✓ Copied SSH config"
-            fi
-
-            # Copy known_hosts if exists (git can write to it)
-            if [ -f "${SSH_HOST_DIR}/known_hosts" ]; then
-                cp "${SSH_HOST_DIR}/known_hosts" "${SSH_DIR}/known_hosts"
-                echo "  ✓ Copied known_hosts"
-            fi
-
-            echo "SSH keys setup completed for ${USER_HOME}"
-        fi
-
-        # Always ensure correct permissions (even if keys already existed)
-        chmod 700 "${SSH_DIR}" 2>/dev/null || true
-        chmod 600 "${SSH_DIR}"/id_* 2>/dev/null || true
-        chmod 600 "${SSH_DIR}/config" 2>/dev/null || true
+    if [ ! -d "${SSH_HOST_DIR}" ]; then
+        return 0
     fi
+
+    mkdir -p "${SSH_DIR}"
+    echo "Syncing SSH keys from host for ${USER_HOME}..."
+
+    # Copy any private key present on the host that is still missing in the container.
+    # Do not overwrite existing container keys — only fill gaps (e.g. id_rsa_xergioalex).
+    for key in "${SSH_HOST_DIR}"/id_*; do
+        [ -f "$key" ] || continue
+        case "$key" in *.pub) continue ;; esac
+        base=$(basename "$key")
+        if [ ! -f "${SSH_DIR}/${base}" ]; then
+            cp "$key" "${SSH_DIR}/${base}"
+            chmod 600 "${SSH_DIR}/${base}"
+            echo "  ✓ Copied ${base}"
+        fi
+    done
+
+    # Copy public keys that are missing in the container
+    for pubkey in "${SSH_HOST_DIR}"/*.pub; do
+        [ -f "$pubkey" ] || continue
+        base=$(basename "$pubkey")
+        if [ ! -f "${SSH_DIR}/${base}" ]; then
+            cp "$pubkey" "${SSH_DIR}/${base}"
+            echo "  ✓ Copied ${base}"
+        fi
+    done
+
+    # Host SSH config is the source of truth (github.com-xergioalex aliases, etc.)
+    if [ -f "${SSH_HOST_DIR}/config" ]; then
+        cp "${SSH_HOST_DIR}/config" "${SSH_DIR}/config"
+        chmod 600 "${SSH_DIR}/config"
+        echo "  ✓ Synced SSH config"
+    fi
+
+    # Seed known_hosts from host when the container has none yet
+    if [ -f "${SSH_HOST_DIR}/known_hosts" ] && [ ! -f "${SSH_DIR}/known_hosts" ]; then
+        cp "${SSH_HOST_DIR}/known_hosts" "${SSH_DIR}/known_hosts"
+        echo "  ✓ Copied known_hosts"
+    fi
+
+    chmod 700 "${SSH_DIR}" 2>/dev/null || true
+    chmod 600 "${SSH_DIR}"/id_* 2>/dev/null || true
+    chmod 644 "${SSH_DIR}"/*.pub 2>/dev/null || true
+    chmod 600 "${SSH_DIR}/config" 2>/dev/null || true
 }
 
 # Setup SSH keys for dev-user only
