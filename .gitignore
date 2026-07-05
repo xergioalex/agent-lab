@@ -5,6 +5,11 @@ __pycache__/
 .venv/
 venv/
 .env
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+build/
+dist/
 
 # OS
 .DS_Store

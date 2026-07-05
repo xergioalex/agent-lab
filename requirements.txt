@@ -1,3 +1,10 @@
+# Agent Lab — core runtime (pip on-ramp). Everything runs OFFLINE with these.
+# For the richer path (dev tools, real backends) use pyproject extras:
+#   pip install -e ".[dev]"       # ruff, mypy, pytest, pre-commit
+#   pip install -e ".[qdrant]"    # real Qdrant (module 42)
+#   pip install -e ".[neo4j]"     # real Neo4j (module 43)
 langgraph>=0.2
+langchain-core>=0.3
 langchain-openai>=0.2
+pydantic>=2.0
 pytest>=8.0

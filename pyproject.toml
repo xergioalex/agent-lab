@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-lab"
+version = "0.2.0"
+description = "A world-class, offline-first curriculum for building production-grade AI agent systems."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Agent Lab" }]
+keywords = ["langgraph", "langchain", "agents", "rag", "llm", "curriculum"]
+
+# Core runtime — everything needed to run every exercise OFFLINE (no keys/services).
+dependencies = [
+    "langgraph>=0.2",
+    "langchain-core>=0.3",
+    "langchain-openai>=0.2",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+# Real OpenAI backend (offline fakes are used automatically when absent).
+openai = ["langchain-openai>=0.2"]
+# Real vector database (module 42). Offline InMemoryVectorStore is the fallback.
+qdrant = ["qdrant-client>=1.7"]
+# Real graph database (module 43). Offline InMemoryGraphStore is the fallback.
+neo4j = ["neo4j>=5.0"]
+# Developer toolchain.
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.8",
+    "pre-commit>=3.5",
+]
+
+[project.urls]
+Documentation = "docs/README.md"
+
+# Only the shared library is a real importable package; numbered module folders
+# are runnable scripts (their names start with digits and are not importable).
+[tool.setuptools]
+packages = ["src.shared"]
+
+# --------------------------------------------------------------------------- #
+# Tooling configuration
+# --------------------------------------------------------------------------- #
+
+[tool.pytest.ini_options]
+# pythonpath="." lets tests do `from src.shared import ...` without sys.path hacks.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 90
+target-version = "py311"
+extend-exclude = [".dwp", ".venv", "docker"]
+
+[tool.ruff.lint]
+# A pragmatic, teaching-friendly rule set.
+select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+ignore = [
+    "E501",  # long lines in teaching examples/prose are acceptable
+    "B008",  # function calls in argument defaults (common in tool/agent APIs)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Exercises intentionally run code at import/module level for readability.
+"src/0*/*.py" = ["E402"]
+"src/[1-9]*/*.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true   # optional deps (qdrant_client, neo4j) may be absent
+warn_unused_ignores = false
+disallow_untyped_defs = false   # exercises favor readability; shared lib is typed
+exclude = ["\\.dwp/", "docker/"]
