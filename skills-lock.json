@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "deepworkplan": {
+      "source": "DailybotHQ/deepworkplan-skill",
+      "sourceType": "github",
+      "skillPath": "skills/deepworkplan/SKILL.md",
+      "computedHash": "ee082251381689095906db19ab63d33021c78e56fed081ad9ebd7047ef6840f5"
+    },
+    "fix-frontmatter": {
+      "source": "DailybotHQ/deepworkplan-skill",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/fix-frontmatter/SKILL.md",
+      "computedHash": "57ff5b9c95e630635b7ae9a83a93421259fb534f79a6206bf49d4498fe23da55"
+    },
+    "shellcheck-fix": {
+      "source": "DailybotHQ/deepworkplan-skill",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/shellcheck-fix/SKILL.md",
+      "computedHash": "da96385595511b9ab1ea2f2046edf4dfe2c89470baa0385a30c1fd8d756a8f5e"
+    },
+    "write-bats-test": {
+      "source": "DailybotHQ/deepworkplan-skill",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/write-bats-test/SKILL.md",
+      "computedHash": "58cf2a4d6b9c92b13ac389d612e08d9d4a3d21e3c0e4fde2e92147bffbf40ae8"
+    }
+  }
+}

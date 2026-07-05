@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# OS
+.DS_Store
+
+# DWP working directories
+.dwp/
+tmp/
+
+# IDE / local editor config
+.idea/
+.vscode/
+.devcontainer/
