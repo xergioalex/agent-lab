@@ -44,6 +44,105 @@ Module 03 is validated separately — it requires `OPENAI_API_KEY` (see below).
 
 ---
 
+## Advanced curriculum — Tracks 1–9 (modules 11–64)
+
+All modules below are **offline-first** (no API key, no services). Each folder has
+a full README (objectives, theory, Mermaid diagrams, runnable example, challenges,
+best practices, references) — open it for the exact run command. Design rationale:
+[docs/roadmap.md](../docs/roadmap.md) · [docs/agent-architecture.md](../docs/agent-architecture.md).
+
+### Track 1 — Foundations · [docs/langgraph.md](../docs/langgraph.md)
+| # | Module | Teaches |
+|---|--------|---------|
+| 11 | [graph_branching](11_graph_branching/) | Conditional edges & multi-way branching |
+| 12 | [parallel_execution](12_parallel_execution/) | Fan-out/fan-in with `Send` + reducers |
+| 13 | [async_nodes](13_async_nodes/) | `async` nodes, `ainvoke`, concurrency |
+| 14 | [error_handling](14_error_handling/) | Retries, backoff, fallbacks, circuit breaker |
+
+### Track 2 — LLM Engineering · [docs/langchain.md](../docs/langchain.md) · [docs/openai.md](../docs/openai.md)
+| # | Module | Teaches |
+|---|--------|---------|
+| 15 | [chat_models](15_chat_models/) | Typed messages & the model bridge |
+| 16 | [structured_outputs](16_structured_outputs/) | Pydantic `with_structured_output` + retry |
+| 17 | [function_calling](17_function_calling/) | `bind_tools` + manual tool loop |
+| 18 | [prompt_engineering](18_prompt_engineering/) | Templates, system prompts, few-shot |
+| 19 | [context_engineering](19_context_engineering/) | Trimming & summarization memory |
+| 20 | [model_routing](20_model_routing/) | Route by difficulty/cost |
+
+### Track 3 — Agent Engineering · [docs/tools.md](../docs/tools.md)
+| # | Module | Teaches |
+|---|--------|---------|
+| 21 | [react_agent](21_react_agent/) | Reason→act→observe loop |
+| 22 | [planner_agent](22_planner_agent/) | Plan generation |
+| 23 | [executor_agent](23_executor_agent/) | Executing plan steps |
+| 24 | [reflection](24_reflection/) | Self-critique & revise |
+| 25 | [router_agent](25_router_agent/) | Intent routing to sub-graphs |
+| 26 | [planning_loops](26_planning_loops/) | Plan → execute → replan |
+| 27 | [human_in_the_loop](27_human_in_the_loop/) | `interrupt`/`Command` approve-resume |
+| 28 | [supervisor](28_supervisor/) | Supervisor over worker agents |
+
+### Track 4 — Memory · [docs/memory.md](../docs/memory.md)
+| # | Module | Teaches |
+|---|--------|---------|
+| 29 | [conversation_memory](29_conversation_memory/) | Buffer/window/summary |
+| 30 | [episodic_memory](30_episodic_memory/) | Timestamped episodes |
+| 31 | [semantic_memory](31_semantic_memory/) | Facts in the vector store |
+| 32 | [procedural_memory](32_procedural_memory/) | Learned procedures |
+| 33 | [memory_writer](33_memory_writer/) | Extract → classify → store |
+| 34 | [memory_retrieval](34_memory_retrieval/) | Query → rank → assemble |
+| 35 | [memory_scoring](35_memory_scoring/) | Relevance + recency + importance |
+| 36 | [memory_consolidation_decay](36_memory_consolidation_decay/) | Consolidation & forgetting |
+
+### Track 5 — Retrieval · [docs/rag.md](../docs/rag.md) · [docs/qdrant.md](../docs/qdrant.md)
+| # | Module | Teaches |
+|---|--------|---------|
+| 37 | [embeddings](37_embeddings/) | Vectors, cosine, chunking |
+| 38 | [rag_fundamentals](38_rag_fundamentals/) | Retrieve → augment → generate |
+| 39 | [hybrid_search](39_hybrid_search/) | Dense + keyword fusion |
+| 40 | [query_rewriting](40_query_rewriting/) | Multi-query / HyDE |
+| 41 | [reranking](41_reranking/) | Cross-encoder-style rerank |
+| 42 | [qdrant_production](42_qdrant_production/) | Real Qdrant + in-memory fallback |
+
+### Track 6 — Graph Intelligence · [docs/neo4j.md](../docs/neo4j.md)
+| # | Module | Teaches |
+|---|--------|---------|
+| 43 | [neo4j_basics](43_neo4j_basics/) | Nodes/relationships + fallback |
+| 44 | [graph_modeling_cypher](44_graph_modeling_cypher/) | Modeling + Cypher queries |
+| 45 | [dependency_analysis](45_dependency_analysis/) | Topo-sort & cycle detection |
+| 46 | [root_cause_analysis](46_root_cause_analysis/) | Upstream traversal & blast radius |
+| 47 | [organizational_graph](47_organizational_graph/) | People/teams/projects queries |
+
+### Track 7 — Multi-Agent · [docs/multi-agent.md](../docs/multi-agent.md)
+| # | Module | Teaches |
+|---|--------|---------|
+| 48 | [agent_collaboration](48_agent_collaboration/) | Cooperation on shared state |
+| 49 | [negotiation](49_negotiation/) | Propose/critique negotiation |
+| 50 | [task_decomposition](50_task_decomposition/) | Decompose → assign → gather |
+| 51 | [shared_memory](51_shared_memory/) | Blackboard memory |
+| 52 | [event_bus](52_event_bus/) | Pub/sub event bus |
+
+### Track 8 — Production · [observability](../docs/observability.md) · [testing](../docs/testing.md) · [agent-security](../docs/agent-security.md)
+| # | Module | Teaches |
+|---|--------|---------|
+| 53 | [observability](53_observability/) | Structured logs, spans, run tree |
+| 54 | [evaluations](54_evaluations/) | Golden sets & scorers |
+| 55 | [testing_agents](55_testing_agents/) | Testing nondeterministic agents |
+| 56 | [security](56_security/) | Injection defenses & input validation |
+| 57 | [cost_and_multitenancy](57_cost_and_multitenancy/) | Token/cost accounting & isolation |
+| 58 | [deployment](58_deployment/) | Docker, CI/CD, deployment shapes |
+
+### Track 9 — Final Projects (capstones)
+| # | Module | Integrates |
+|---|--------|-----------|
+| 59 | [personal_assistant](59_personal_assistant/) | Memory + tools + routing |
+| 60 | [research_agent](60_research_agent/) | Planner + RAG + reflection |
+| 61 | [coding_agent](61_coding_agent/) | Tool-using code loop |
+| 62 | [incident_response_agent](62_incident_response_agent/) | Graph RCA + tools |
+| 63 | [company_brain](63_company_brain/) | Memory + RAG + graph + multi-agent |
+| 64 | [mini_dailybot_brain](64_mini_dailybot_brain/) | The whole curriculum |
+
+---
+
 ## Run every script
 
 ### 01 — State basics
