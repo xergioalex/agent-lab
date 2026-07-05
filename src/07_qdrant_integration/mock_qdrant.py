@@ -1,0 +1,2 @@
+
+print("Qdrant placeholder")
