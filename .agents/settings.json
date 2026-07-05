@@ -1,0 +1,6 @@
+{
+  "permissions": {
+    "allow": ["Read", "Grep", "Glob", "Edit", "Write", "Bash"]
+  },
+  "notes": "Agent Lab harness — no secrets in this file"
+}
