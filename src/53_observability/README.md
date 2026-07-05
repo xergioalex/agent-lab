@@ -48,21 +48,25 @@ video log (run tree) of the day's operations without slowing anyone down.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> plan[plan]
-    plan --> retrieve[retrieve]
-    retrieve --> respond[respond]
-    respond --> END((END))
+flowchart LR
+    START([START]) --> plan["plan(state)"]
+    plan --> retrieve["retrieve(state)"]
+    retrieve --> respond["respond(state, model)"]
+    respond --> END([END])
 
-    subgraph Instrumentation
-        plan -.traced.-> T1[RunSpan]
-        retrieve -.traced.-> T2[RunSpan]
-        respond -.traced.-> T3[RunSpan]
-        T1 --> RT[RunTree]
+    subgraph Instrumentation["every node wrapped by traced_node(run_tree, name)"]
+        plan -.->|"traced"| T1["RunSpan(plan)"]
+        retrieve -.->|"traced"| T2["RunSpan(retrieve)"]
+        respond -.->|"traced"| T3["RunSpan(respond)"]
+        T1 --> RT["RunTree.spans"]
         T2 --> RT
         T3 --> RT
     end
 ```
+
+*Legend: solid arrows are the actual graph edges; dotted arrows show each
+node wrapped by `traced_node`, which records timing/tokens into the shared
+`RunTree` without changing the node's own logic or the graph's edges.*
 
 Sequence of one instrumented node call:
 
@@ -82,6 +86,22 @@ sequenceDiagram
     W->>R: record(RunSpan)
     W-->>G: partial state update
 ```
+
+**Flow notes:**
+- `traced_node(run_tree, name)` is a decorator **factory**: it closes over
+  `run_tree` and `name`, then returns a decorator that wraps the actual node
+  function — the node body (`plan`, `retrieve`, `respond`) never knows it is
+  being observed.
+- On `enter`, the wrapper logs via `get_logger` and starts
+  `time.perf_counter()`; on exit (success or exception) it computes
+  `duration_ms`, estimates tokens from the stringified result via
+  `estimate_tokens`, and appends one `RunSpan` to the shared `RunTree`.
+- If the wrapped node raises, the wrapper logs the exception (`logger.exception`)
+  and **re-raises** — instrumentation never swallows an error, it only
+  observes it.
+- `RunTree.render()` prints spans in recorded order as a nested trace; the
+  header metrics (`total_latency_ms`, `total_tokens_est`) are simple sums
+  over every recorded span.
 
 ## Runnable Example
 

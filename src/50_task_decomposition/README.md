@@ -50,17 +50,21 @@ manager only reconvenes everyone (`reduce`) once every subtask reports back.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) -->|decompose: Send per subtask| worker1[worker: design]
-    START -->|decompose| worker2[worker: implement]
-    START -->|decompose| worker3[worker: test]
-    START -->|decompose| worker4[worker: document]
-    worker1 --> reduce[reduce]
+flowchart LR
+    START([START]) -->|"decompose(state): Send('worker', {subtask: 'design'})"| worker1["worker(state)\nsubtask=design"]
+    START -->|"Send('worker', {subtask: 'implement'})"| worker2["worker(state)\nsubtask=implement"]
+    START -->|"Send('worker', {subtask: 'test'})"| worker3["worker(state)\nsubtask=test"]
+    START -->|"Send('worker', {subtask: 'document'})"| worker4["worker(state)\nsubtask=document"]
+    worker1 --> reduce["reduce(state)"]
     worker2 --> reduce
     worker3 --> reduce
     worker4 --> reduce
-    reduce --> END((END))
+    reduce --> END([END])
 ```
+
+*Legend: `decompose` is a conditional edge attached to `START` (not a node)
+that returns a list of `Send` objects instead of a plain string — one arrow
+per `Send`, each carrying only that worker's own subtask as its entire input.*
 
 Map/assign/reduce sequence for one goal:
 
@@ -86,6 +90,21 @@ sequenceDiagram
     R->>R: sort notes, build summary
     R-->>U: final state
 ```
+
+**Flow notes:**
+- `decompose` maps a `goal` to its subtasks via the static `DECOMPOSITION`
+  dict and emits one `Send("worker", {...})` per subtask — all scheduled in
+  the same super-step (fan-out), not a sequential loop.
+- Each `Send`'s second argument is the **entire** input for that worker
+  invocation, so a worker only ever sees its own `subtask` — never the
+  other workers' assignments.
+- `worker` writes only to `scratchpad` (reducer-backed via `operator.add`),
+  which is what lets every parallel worker's contribution merge safely
+  instead of colliding.
+- `reduce` is the fan-in: it runs once, after every `worker` invocation from
+  the same `decompose` call has completed, and sorts `scratchpad` before
+  building the summary so output is deterministic regardless of completion
+  order.
 
 ## Runnable Example
 

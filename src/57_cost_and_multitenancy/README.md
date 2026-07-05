@@ -48,22 +48,81 @@ not a shared total.
 ## Architecture
 
 ```mermaid
-graph TB
-    subgraph TenantStore
-        NS1[acme namespace]
-        NS2[globex namespace]
+flowchart TD
+    START(["START"]) --> WA["run_tenant_workload(store, 'acme')"]
+    START --> WG["run_tenant_workload(store, 'globex')"]
+
+    subgraph ACME["acme namespace"]
+        QA{"for query in _QUERIES['acme']"}
+        QA --> MA["model.invoke(query)"]
+        MA --> WRA["store.write('acme', 'message_i'/'reply_i', ...)"]
+        WRA --> TA["usage.tokens_est += estimate_tokens(...)"]
+        TA -->|"more queries"| QA
     end
-    Q1[acme queries] --> M1[model.invoke]
-    M1 --> NS1
-    Q2[globex queries] --> M2[model.invoke]
-    M2 --> NS2
-    M1 --> U1[acme usage: tokens, cost]
-    M2 --> U2[globex usage: tokens, cost]
-    NS1 -.blocked.-> NS2
-    NS2 -.blocked.-> NS1
-    U1 --> REPORT[Cost report]
-    U2 --> REPORT
+    subgraph GLOBEX["globex namespace"]
+        QG{"for query in _QUERIES['globex']"}
+        QG --> MG["model.invoke(query)"]
+        MG --> WRG["store.write('globex', 'message_i'/'reply_i', ...)"]
+        WRG --> TG["usage.tokens_est += estimate_tokens(...)"]
+        TG -->|"more queries"| QG
+    end
+
+    WA --> QA
+    WG --> QG
+    TA -->|"done"| UAOUT["TenantUsage(acme)"]
+    TG -->|"done"| UGOUT["TenantUsage(globex)"]
+
+    UAOUT --> ISO{"assert_isolated(tenant, other, 'message_0')"}
+    UGOUT --> ISO
+    ISO -->|"isolated == False"| FAIL["raise AssertionError: isolation violated"]
+    ISO -->|"isolated == True (both directions)"| REPORT["print per-tenant cost report + totals"]
+    REPORT --> END(["END"])
+    FAIL --> END
 ```
+
+Legend: each tenant runs inside its own subgraph/namespace with no edge
+crossing between `ACME` and `GLOBEX`; the `ISO` diamond is the isolation
+check that gates whether the report ever prints.
+
+Sequence of the same run over time:
+
+```mermaid
+sequenceDiagram
+    participant Main as main()
+    participant WA as run_tenant_workload(acme)
+    participant Store as TenantStore
+    participant WG as run_tenant_workload(globex)
+
+    Main->>WA: run_tenant_workload(store, "acme")
+    loop each query in _QUERIES["acme"]
+        WA->>WA: model.invoke(query)
+        WA->>Store: write("acme", "message_i"/"reply_i", ...)
+        WA->>WA: tokens_est += estimate_tokens(...)
+    end
+    WA-->>Main: TenantUsage(acme)
+
+    Main->>WG: run_tenant_workload(store, "globex")
+    WG->>Store: write("globex", ...)
+    WG-->>Main: TenantUsage(globex)
+
+    Main->>Store: assert_isolated("acme", "globex", "message_0")
+    Store-->>Main: isolated=True
+    Main->>Store: assert_isolated("globex", "acme", "message_0")
+    Store-->>Main: isolated=True
+    Main->>Main: print cost report per tenant + totals
+```
+
+Flow notes:
+
+- Each tenant's workload loops over its own `_QUERIES` list, invoking the
+  model and writing message/reply pairs only into that tenant's own
+  `TenantStore` namespace (`store.write(tenant_id, ...)`), never another's.
+- `assert_isolated` branches on whether a cross-tenant read of the same key
+  name (`"message_0"`) succeeds and matches; if isolation is violated in
+  either direction, `main()` raises `AssertionError` and the report never
+  prints.
+- The final report runs only after both isolation checks pass, aggregating
+  `tokens_est` / `cost_usd` per tenant plus a grand total.
 
 ## Runnable Example
 

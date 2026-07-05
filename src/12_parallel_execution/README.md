@@ -48,17 +48,32 @@ clipboard once everyone has clocked out.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) -->|Send x4| worker1[worker doc 1]
-    START -->|Send x4| worker2[worker doc 2]
-    START -->|Send x4| worker3[worker doc 3]
-    START -->|Send x4| worker4[worker doc 4]
-    worker1 --> aggregate[aggregate]
-    worker2 --> aggregate
-    worker3 --> aggregate
-    worker4 --> aggregate
-    aggregate --> END((END))
+flowchart TD
+    START([START]) -->|"dispatch(state): Send('worker', doc) x4"| worker["worker(state)"]
+    worker --> aggregate["aggregate(state)"]
+    aggregate --> END([END])
 ```
+
+Legend: the graph only ever `add_node`s one `worker`; the edge label shows
+that `dispatch` fans it out into 4 independent scheduled invocations (one
+`Send` per document) within a single super-step — see the sequence diagram
+below for what that fan-out looks like unrolled over time.
+
+Flow notes:
+
+- `dispatch` is the conditional-edge router attached to `START`; instead of
+  returning one target-node key, it returns a **list of `Send` objects**,
+  each carrying its own document as that invocation's entire input.
+- Every `Send("worker", {...})` runs the same `worker` node body once per
+  document, independently — no worker can see another worker's input or
+  output.
+- `worker` computes a word count and appends one note to `scratchpad`; this
+  is safe only because `scratchpad` is `Annotated[list[str], operator.add]` —
+  the reducer concatenates all 4 parallel writes instead of one clobbering
+  the rest.
+- `aggregate` is the ordinary fan-in node: LangGraph only runs it after every
+  `worker` `Send` task from the super-step has completed and the reducer has
+  merged their writes, so it always sees all 4 results.
 
 Fan-out/fan-in over time (one super-step per row):
 

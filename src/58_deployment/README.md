@@ -53,25 +53,86 @@ someone else's oven). The recipe (the script) never changes between stages.
 ## Architecture
 
 ```mermaid
-graph LR
-    subgraph Local Dev
-        S[python src/NN_name/script.py] --> F[offline fakes: FakeToolCallingModel, InMemoryVectorStore, ...]
-    end
-    subgraph Container
-        C[docker compose up -d] --> Q[qdrant service]
-        C --> N[neo4j service]
-    end
-    subgraph CI Pipeline
-        P[.github/workflows/ci.yml] --> M1[Python 3.11]
-        P --> M2[Python 3.12]
-        M1 --> T[pytest -- offline hard gate]
-        M2 --> T
-        P --> L[ruff / mypy -- advisory]
-    end
-    S -.optionally backed by.-> Q
-    S -.optionally backed by.-> N
-    T -.runs the same script as.-> S
+flowchart TD
+    START(["START"]) --> MAP["print_deployment_map(): local -> container -> pipeline"]
+    MAP --> READC["_read_text(docker-compose.yml)"]
+    READC -->|"file missing"| FAIL1["raise FileNotFoundError"]
+    READC -->|"ok"| EXTC["extract_compose_services(text)"]
+    EXTC --> CHK1{"'qdrant' in services?"}
+    CHK1 -->|"yes"| PASS1["PASS compose_defines_qdrant"]
+    CHK1 -->|"no"| FAILCHK1["FAIL compose_defines_qdrant"]
+    EXTC --> CHK2{"'neo4j' in services?"}
+    CHK2 -->|"yes"| PASS2["PASS compose_defines_neo4j"]
+    CHK2 -->|"no"| FAILCHK2["FAIL compose_defines_neo4j"]
+
+    MAP --> READCI["_read_text(ci.yml)"]
+    READCI -->|"file missing"| FAIL1
+    READCI -->|"ok"| EXTV["extract_ci_python_versions(text)"]
+    EXTV --> CHK3{"len(versions) >= 1?"}
+    CHK3 -->|"yes"| PASS3["PASS ci_declares_python_matrix"]
+    CHK3 -->|"no"| FAILCHK3["FAIL ci_declares_python_matrix"]
+    READCI --> EXTR["extract_ci_run_commands(text)"]
+    EXTR --> CHK4{"any run command contains 'pytest'?"}
+    CHK4 -->|"yes"| PASS4["PASS ci_runs_offline_pytest"]
+    CHK4 -->|"no"| FAILCHK4["FAIL ci_runs_offline_pytest"]
+
+    PASS1 & PASS2 & PASS3 & PASS4 --> ALLOK{"all_passed?"}
+    FAILCHK1 & FAILCHK2 & FAILCHK3 & FAILCHK4 --> ALLOK
+    ALLOK -->|"False"| FAIL2["raise AssertionError: readiness check failed"]
+    ALLOK -->|"True"| DONE["print MODULE 58 COMPLETE"]
+    DONE --> END(["END"])
+    FAIL1 --> END
+    FAIL2 --> END
 ```
+
+Legend: diamonds are the boolean checks `build_readiness_report` runs;
+every `FAIL*` branch converges into `all_passed=False`, which raises before
+the completion banner ever prints.
+
+Sequence of the offline readiness read over time:
+
+```mermaid
+sequenceDiagram
+    participant Main as main()
+    participant FS as filesystem
+    participant Ext as extract_* helpers
+    participant Rep as build_readiness_report
+
+    Main->>Main: print_deployment_map()
+    Main->>Rep: build_readiness_report()
+    Rep->>FS: _read_text(docker-compose.yml)
+    FS-->>Rep: compose text
+    Rep->>Ext: extract_compose_services(text)
+    Ext-->>Rep: ["qdrant", "neo4j"]
+    Rep->>FS: _read_text(ci.yml)
+    FS-->>Rep: ci text
+    Rep->>Ext: extract_ci_python_versions(text)
+    Ext-->>Rep: ["3.11", "3.12"]
+    Rep->>Ext: extract_ci_run_commands(text)
+    Ext-->>Rep: ["python -m pytest", "ruff check ...", "mypy ..."]
+    Rep-->>Main: [ReadinessCheck, ...]
+    Main->>Main: print PASS/FAIL per check
+    alt any check failed
+        Main-->>Main: raise AssertionError
+    else all passed
+        Main-->>Main: print MODULE 58 COMPLETE
+    end
+```
+
+Flow notes:
+
+- Each `_read_text` call raises `FileNotFoundError` immediately if the
+  compose or CI file is missing — a broken deployment file fails loudly
+  instead of silently skipping checks.
+- `compose_defines_qdrant` / `compose_defines_neo4j` both branch on the same
+  `extract_compose_services` result; either service missing flips that
+  check to `FAIL`.
+- `ci_declares_python_matrix` branches on whether `extract_ci_python_versions`
+  found at least one version; `ci_runs_offline_pytest` branches on whether
+  any extracted run command contains `"pytest"`.
+- `all_passed` aggregates all four checks — a single `FAIL` flips it to
+  `False` and `main()` raises `AssertionError`; the completion banner only
+  prints when every check passes.
 
 ## Runnable Example
 

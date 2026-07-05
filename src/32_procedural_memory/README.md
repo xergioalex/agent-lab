@@ -38,12 +38,48 @@ recipe's exact steps in order.
 
 ## Architecture
 
+### Graph Structure
+
 ```mermaid
-graph LR
-    P[Procedure store] -->|add| M[ProceduralMemory]
-    R[request text] -->|retrieve_by_trigger| M
-    M -->|match| PR[matched Procedure]
-    PR -->|apply| S[ordered steps]
+flowchart TD
+    START([START]) --> Add["add(procedure)\nfor each Procedure in PROCEDURES"]
+    Add --> Store[("ProceduralMemory._procedures")]
+    Request["request text"] --> Retrieve["retrieve_by_trigger(request)"]
+    Store --> Retrieve
+    Retrieve -->|"any(trigger in text for trigger in procedure.triggers)"| Matched["matched Procedure"]
+    Retrieve -->|"no procedure's triggers matched"| NoMatch["None"]
+    Matched --> Apply["apply(procedure)"]
+    Apply --> Steps["ordered steps"]
+    NoMatch --> Fallback["print: no matching procedure"]
+    Steps --> END([END])
+    Fallback --> END
+```
+
+*Legend: the two edges out of `retrieve_by_trigger` are its only possible outcomes — a linear, first-match scan over registered procedures, not a ranked search.*
+
+Flow notes:
+- `add` registers every `Procedure` in `PROCEDURES` into the in-memory dict, keyed by `name`.
+- `retrieve_by_trigger` walks procedures in insertion order and returns the **first** one whose `triggers` overlap the lower-cased request text.
+- When no procedure's triggers appear in the request, it returns `None` and `main()` prints the fallback message instead of calling `apply`.
+- `apply` only runs on a matched procedure and renders its `steps` as a 1-indexed numbered list.
+
+### Flow Over Time
+
+```mermaid
+sequenceDiagram
+    participant Main as main()
+    participant Mem as ProceduralMemory
+    Main->>Mem: add(procedure) for each PROCEDURES entry
+    loop for each request in requests
+        Main->>Mem: retrieve_by_trigger(request)
+        alt trigger matched
+            Mem-->>Main: Procedure
+            Main->>Mem: apply(procedure)
+            Mem-->>Main: ordered steps
+        else no trigger matched
+            Mem-->>Main: None
+        end
+    end
 ```
 
 ## Runnable Example

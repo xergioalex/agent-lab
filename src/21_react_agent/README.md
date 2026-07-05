@@ -42,11 +42,27 @@ file: every reasoning step and observation is appended, never lost.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> reason[reason]
-    reason -->|tool_calls present| act[act: ToolNode]
-    reason -->|no tool_calls| END((END))
+flowchart LR
+    START(["START"]) --> reason["reason"]
+    reason -->|"tool_calls present"| act["act: ToolNode(DEMO_TOOLS)"]
+    reason -->|"no tool_calls"| END(["END"])
     act --> reason
+```
+
+*Legend: node ids match `add_node("reason", ...)` / `add_node("act", ...)`;*
+*the edge label is the exact condition `route_after_reason` checks*
+*(`getattr(last, "tool_calls", None)`); `act --> reason` is the*
+*observe-then-reason-again loop.*
+
+The loop as a state machine (independent of how many tool calls it takes):
+
+```mermaid
+stateDiagram-v2
+    [*] --> Reasoning
+    Reasoning --> Acting: tool_calls present
+    Reasoning --> Done: no tool_calls
+    Acting --> Reasoning: ToolMessage observation appended
+    Done --> [*]
 ```
 
 Sequence of one full loop (two tool calls, then a final answer):
@@ -69,6 +85,21 @@ sequenceDiagram
     R->>R: model.invoke(messages) -> AIMessage(content=final answer, no tool_calls)
     R-->>U: route_after_reason -> "done" -> END
 ```
+
+Flow notes:
+
+- **`tool_calls present`** — the model's reply carries one or more
+  `tool_calls`; `route_after_reason` sends state to `act`, which executes
+  every proposed call via `ToolNode(DEMO_TOOLS)` and appends the resulting
+  `ToolMessage`(s).
+- **`no tool_calls`** — the model replied with plain content only; the loop
+  ends and `route_after_reason` returns `"done"`, mapped to `END`.
+- **`act --> reason`** is unconditional: every tool execution feeds straight
+  back into another `reason` call with the updated transcript — this is the
+  "observe" step, folded into the edge rather than a separate node.
+- The loop's only hard bound is `get_chat_model(max_tool_calls=2)` in this
+  offline configuration; production code should also cap total turns
+  independent of tool-call count (see Common Mistakes below).
 
 ## Runnable Example
 

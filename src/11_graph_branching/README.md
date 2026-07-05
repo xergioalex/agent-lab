@@ -45,18 +45,34 @@ you end up.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> classify[classify]
-    classify -->|bug| bug[bug handler]
-    classify -->|feature| feature[feature handler]
-    classify -->|question| question[question handler]
-    classify -->|general| general[general handler]
-    bug --> notify[notify]
+flowchart TD
+    START([START]) --> classify["classify(state)"]
+    classify -->|"category == 'bug'"| bug["bug (_handler)"]
+    classify -->|"category == 'feature'"| feature["feature (_handler)"]
+    classify -->|"category == 'question'"| question["question (_handler)"]
+    classify -->|"category == 'general' (default)"| general["general (_handler)"]
+    bug --> notify["notify"]
     feature --> notify
     question --> notify
     general --> notify
-    notify --> END((END))
+    notify --> END([END])
 ```
+
+Legend: edge labels are the `category` value `route_by_category` returns after
+reading `context.category`; every branch converges at `notify` before `END`.
+
+Flow notes:
+
+- `classify` keyword-matches the latest human message and writes
+  `context.category` — the only node with a side effect before routing.
+- `route_by_category` is a **pure** router: it reads `context.category` and
+  returns one of `"bug" | "feature" | "question" | "general"` — `"general"` is
+  also the fallback when no keyword matches.
+- Each branch handler (`_handler(category, action)`) appends exactly one
+  scratchpad note describing the action taken for that category.
+- All four branches converge on `notify`, which reads the last scratchpad
+  note and builds the final `AIMessage` reply — one shared exit path instead
+  of four duplicated ones.
 
 Sequence of a single branch decision (the "bug" path):
 

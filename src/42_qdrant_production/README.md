@@ -62,15 +62,62 @@ note in the building.
 ## Architecture
 
 ```mermaid
-graph TD
-    Start[build_store] --> Check{QDRANT_URL set?}
-    Check -->|yes| Real[_build_qdrant_store: real qdrant-client, imported lazily]
-    Check -->|no| Fallback[InMemoryVectorStore]
-    Real --> Store[VectorStoreClient]
-    Fallback --> Store
-    Store --> Search[similarity_search_filtered]
-    Search --> Result[Filtered, scored documents]
+flowchart TD
+    START([START]) --> build["build_store()"]
+    build --> check{"settings.has_qdrant()<br/>(QDRANT_URL set?)"}
+    check -->|"yes"| lazy["_build_qdrant_store(settings)<br/>lazy: from qdrant_client import QdrantClient"]
+    lazy --> real["QdrantAdapter (real qdrant-client)"]
+    check -->|"no"| fallback["InMemoryVectorStore()"]
+    real --> store["VectorStoreClient (shared surface)"]
+    fallback --> store
+    store --> add["add_texts(texts, metadatas, ids)"]
+    add --> filtercheck{"category is None?"}
+    filtercheck -->|"yes"| plain["similarity_search(query, k)"]
+    filtercheck -->|"no"| overfetch["over-fetch: similarity_search(query, k*len(DOCUMENTS))<br/>then post-filter by metadata.category"]
+    plain --> END([END])
+    overfetch --> END
 ```
+
+*Legend: the `has_qdrant()` diamond is the only real/offline branch in this
+module; the `category is None?` diamond is a second, independent branch
+inside `similarity_search_filtered` that decides between a plain search and
+an over-fetch-then-post-filter search.*
+
+```mermaid
+sequenceDiagram
+    participant Caller as main()
+    participant Settings as get_settings()
+    participant Store as build_store()
+    participant Backend as VectorStoreClient
+
+    Caller->>Settings: has_qdrant()?
+    alt QDRANT_URL configured
+        Settings-->>Store: True
+        Store->>Store: _build_qdrant_store() (lazy import qdrant_client)
+        Store-->>Backend: QdrantAdapter
+    else QDRANT_URL not set (this script's default path)
+        Settings-->>Store: False
+        Store-->>Backend: InMemoryVectorStore
+    end
+    Caller->>Backend: add_texts(DOCUMENTS)
+    Caller->>Backend: similarity_search_filtered(query, k=2, category="policy")
+    Backend-->>Caller: scored, filtered results (backend name printed)
+```
+
+**Flow notes**
+
+- `build_store()` checks `settings.has_qdrant()` exactly once; on `False`
+  (the default, offline path this script and its smoke test always
+  exercise) it returns `InMemoryVectorStore()` without ever importing
+  `qdrant_client`.
+- On `True`, `_build_qdrant_store` is the only place `qdrant_client` is
+  imported — lazily, inside the function — so the module stays importable
+  even when the package isn't installed.
+- `similarity_search_filtered`'s `category is None` branch chooses between
+  a plain `similarity_search` and an over-fetch-then-post-filter path; the
+  in-memory backend has no server-side filter to push the condition to, so
+  it fetches `k * len(DOCUMENTS)` candidates and filters in Python — a real
+  Qdrant collection would push the same filter server-side instead.
 
 ## Runnable Example
 

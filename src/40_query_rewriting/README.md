@@ -61,22 +61,60 @@ question a student would ask out loud.
 ## Architecture
 
 ```mermaid
-graph LR
-    U[User query] --> MQ[expand_query via get_chat_model]
-    MQ --> V1[variant 1]
-    MQ --> V2[variant 2]
-    MQ --> V3[variant 3]
-    V1 --> S1[similarity_search]
-    V2 --> S1
-    V3 --> S1
-    U --> S1
-    S1 --> Merge[merge_by_best_score]
-
-    U --> HY[hyde_query via get_chat_model]
-    HY --> HA[hypothetical answer]
-    HA --> S2[similarity_search]
-    S2 --> Compare[compare vs. baseline]
+flowchart TD
+    START([START]) --> baseline["store.similarity_search(USER_QUERY, k=1)"]
+    baseline --> mq["expand_query(query): get_chat_model([...]).invoke(...)"]
+    mq --> parse["parse numbered-list response into variants"]
+    parse -->|"loop: for query in [original, *rewrites]"| retrieve["retrieve_many(): similarity_search per variant"]
+    retrieve --> merge["merge_by_best_score(): max score per doc_id"]
+    merge --> hyde["hyde_query(query): get_chat_model([...]).invoke(...)"]
+    hyde --> hypothetical["hypothetical answer text"]
+    hypothetical --> hsearch["similarity_search(hypothetical, k=1)"]
+    hsearch --> compare["compare hyde_top vs baseline"]
+    compare --> END([END])
 ```
+
+*Legend: the loop on `retrieve_many` is "one retrieval per rewritten
+variant"; there is no conditional branching in this module — both
+strategies run unconditionally so their outputs can be compared side by
+side.*
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant LLM as get_chat_model (offline fake)
+    participant VS as InMemoryVectorStore
+
+    U->>VS: similarity_search(USER_QUERY, k=1)
+    VS-->>U: baseline_top = doc-deploy (wrong document)
+
+    U->>LLM: "Rewrite this question 3 different ways"
+    LLM-->>U: 3 canned rewrites (_MULTI_QUERY_RESPONSE)
+    loop for each variant (original + 3 rewrites)
+        U->>VS: similarity_search(variant, k=2)
+        VS-->>U: top-k results
+    end
+    U->>U: merge_by_best_score(results_by_variant)
+
+    U->>LLM: "Write a plausible one-sentence answer"
+    LLM-->>U: hypothetical answer (_HYDE_RESPONSE)
+    U->>VS: similarity_search(hypothetical, k=1)
+    VS-->>U: hyde_top = doc-vacation (correct document)
+```
+
+**Flow notes**
+
+- `expand_query` calls the model once, then parses its numbered-list
+  response into rewrites; the original query is always kept as the first
+  variant so rewriting can only add coverage, never remove the baseline.
+- `retrieve_many` loops over every variant (original + rewrites) and issues
+  one `similarity_search` per variant — no branch, just repetition.
+- `merge_by_best_score` keeps each document's **best** score seen across all
+  variants (a `max`, never an average), so one bad rewrite can only fail to
+  help, not actively hurt a document's merged score.
+- `hyde_query` takes a different path entirely: one model call produces a
+  hypothetical *answer*, which is embedded and searched directly — no
+  merging step, just a single retrieval compared against the baseline.
 
 ## Runnable Example
 

@@ -53,13 +53,48 @@ only one.
 ## Architecture
 
 ```mermaid
-graph LR
-    Q[Query] --> D[dense_rank via InMemoryVectorStore]
-    Q --> K[keyword_rank via BM25-style scorer]
-    D --> F[reciprocal_rank_fusion]
-    K --> F
-    F --> Out[Fused ranking]
+flowchart TD
+    START([START]) --> tokenize["_tokenize(query)"]
+    tokenize --> kscore["keyword_score(query, text)<br/>overlap / sqrt(len(text_tokens))"]
+    kscore --> krank["keyword_rank(): sort corpus desc"]
+    START --> dstore["InMemoryVectorStore.add_texts(CORPUS)"]
+    dstore --> dsearch["similarity_search(query, k=len(corpus))"]
+    dsearch --> drank["dense_rank(): cosine-ranked doc ids"]
+    krank --> fuse["reciprocal_rank_fusion([dense_rank, keyword_rank])"]
+    drank --> fuse
+    fuse -->|"loop: for rank, doc_id in enumerate(ranking)"| fuse
+    fuse --> END([END])
 ```
+
+*Legend: the loop arrow on `reciprocal_rank_fusion` is the inner accumulation
+over each ranking's positions, not a retry — every ranking is visited exactly
+once per call.*
+
+```mermaid
+sequenceDiagram
+    participant Q as Query
+    participant KW as keyword_rank
+    participant VS as InMemoryVectorStore
+    participant RRF as reciprocal_rank_fusion
+    Q->>KW: keyword_score(query, text) per doc
+    KW-->>RRF: keyword_ranking (doc ids, desc)
+    Q->>VS: similarity_search(query, k=4)
+    VS-->>RRF: dense_ranking (doc ids, desc)
+    RRF->>RRF: score(doc) += 1 / (k + rank) per ranking
+    RRF-->>Q: fused_rank (doc-paraphrase recovered above doc-oncall)
+```
+
+**Flow notes**
+
+- Both `keyword_rank` and `dense_rank` run independently over the same
+  `CORPUS` and never see each other's output — that independence is what
+  lets fusion compensate for either one's mistakes.
+- `reciprocal_rank_fusion`'s inner loop iterates each input ranking once,
+  accumulating `1 / (k + rank)` per document — a document absent from a
+  ranking simply contributes 0 from that source, it is never penalized.
+- The final assertion (`fusion_recovers_it`) checks that `doc-paraphrase`
+  outranks `doc-oncall` in `fused_rank` even though keyword search alone
+  buries it — the concrete "hybrid beats either signal" case.
 
 ## Runnable Example
 

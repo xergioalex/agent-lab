@@ -40,32 +40,43 @@ that is the department's (sub-graph's) business.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> classify[classify]
-    classify -->|weather| W[weather sub-graph]
-    classify -->|task| T[task sub-graph]
-    classify -->|general| G[general sub-graph]
-    W --> END((END))
-    T --> END
-    G --> END
-
-    subgraph "weather sub-graph"
-        W
-    end
+flowchart TD
+    START([START]) --> classify["classify(state)"]
+    classify -->|"intent == 'weather'"| weather["weather (sub-graph)"]
+    classify -->|"intent == 'task'"| task["task (sub-graph)"]
+    classify -->|"intent == 'general' (default)"| general["general (sub-graph)"]
+    weather --> END([END])
+    task --> END
+    general --> END
 ```
+
+*Legend: edge labels are the `intent` value `route_by_intent` reads from
+`context["intent"]`; each target is an independently compiled `StateGraph`
+(a sub-graph), not a plain handler function.*
+
+**Flow notes**
+
+- `classify` lowercases the latest human message and keyword-matches it
+  against `_KEYWORDS`; the first match wins, and anything unmatched falls
+  back to `"general"`.
+- `route_by_intent` performs no classification itself — it only reads
+  `context["intent"]` back and returns it as the conditional-edge key.
+- The `weather` sub-graph extracts a city from the message and calls the
+  `get_weather` tool.
+- The `task` sub-graph calls `create_task` with the raw message as the title.
+- The `general` sub-graph has no tool call — it just acknowledges the
+  message verbatim.
 
 ```mermaid
 sequenceDiagram
     participant U as Caller
     participant C as classify
-    participant R as route_by_intent
-    participant WS as weather sub-graph
+    participant WS as weather (sub-graph)
 
     U->>C: invoke({messages: ["What's the weather in Tokyo?"]})
     C->>C: keyword match -> intent="weather"
-    C-->>R: context.intent="weather"
-    R->>R: read state, return "weather"
-    R-->>WS: dispatch to compiled sub-graph node
+    Note over C: route_by_intent(state) reads context.intent, returns "weather"
+    C->>WS: dispatch (conditional-edge target)
     WS->>WS: handle: extract city, call get_weather tool
     WS-->>U: messages += [AIMessage(reply)]
 ```

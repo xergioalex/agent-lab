@@ -43,16 +43,36 @@ the *line* moves much faster overall.
 ## Architecture
 
 ```mermaid
-graph LR
-    subgraph Sync graph
-        S_START((START)) --> S_FETCH["fetch (time.sleep)"]
-        S_FETCH --> S_END((END))
+flowchart TD
+    subgraph SYNC["Sync graph (build_sync_graph)"]
+        S_START(["START"]) --> S_FETCH["fetch(state): time.sleep(delay)"]
+        S_FETCH --> S_END(["END"])
     end
-    subgraph Async graph
-        A_START((START)) --> A_FETCH["fetch (asyncio.sleep)"]
-        A_FETCH --> A_END((END))
+    subgraph ASYNC["Async graph (build_async_graph)"]
+        A_START(["START"]) --> A_FETCH["fetch(state): await asyncio.sleep(delay)"]
+        A_FETCH --> A_END(["END"])
     end
 ```
+
+Legend: both graphs have the identical one-node shape (`START -> fetch ->
+END`); the only difference is whether `fetch` blocks (`time.sleep`) or yields
+(`await asyncio.sleep`) — the sequence diagram below shows why that single
+difference changes wall-clock behavior under `gather`.
+
+Flow notes:
+
+- `build_sync_graph` wires a single `fetch` node (`sync_fetch`) that calls
+  `time.sleep(delay)` — this blocks the entire process for `delay` seconds.
+- `build_async_graph` wires the same shape with `async_fetch`, an `async def`
+  node that `await`s `asyncio.sleep(delay)` — control returns to the event
+  loop for that duration instead of blocking it.
+- `run_sequential` calls `sync_app.invoke(...)` `TASK_COUNT` times back to
+  back; each call fully blocks before the next one starts, so elapsed time
+  grows linearly with `TASK_COUNT`.
+- `run_concurrent` calls `asyncio.gather` over `TASK_COUNT` concurrent
+  `async_app.ainvoke(...)` coroutines; because each spends its time
+  `await`-ing rather than blocking, they interleave on one event loop and
+  elapsed time stays close to a single `delay`.
 
 Sequential `invoke()` vs. concurrent `ainvoke()` over time:
 

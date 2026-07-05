@@ -37,12 +37,64 @@ question, regardless of when each entry was added.
 ## Architecture
 
 ```mermaid
-graph LR
-    F[FACTS: text + metadata] -->|embed_documents| V[InMemoryVectorStore]
-    Q[query] -->|embed_query| S[similarity_search]
-    V --> S
-    S --> R[ranked facts + scores]
+flowchart TD
+    FACTS["FACTS: text + metadata"] -->|"write_facts() -> embed_documents"| Store["InMemoryVectorStore"]
+    query["query"] -->|"recall() -> embed_query"| search["similarity_search"]
+    Store --> search
+    search --> ranked["ranked (text, score) pairs, top-k"]
 ```
+
+*Legend: the top path (`FACTS -> Store`) runs once at write time; the
+bottom path (`query -> search`) runs once per `recall()` call against
+whatever is already stored.*
+
+**Flow notes**
+
+- `write_facts(facts)` embeds every fact's text via `embed_documents` and
+  stores `(text, metadata, vector)` in `InMemoryVectorStore` — a one-time
+  write per fact.
+- `recall(query, k)` embeds only the query via `embed_query`, then ranks
+  every stored vector by cosine similarity, returning the top `k`
+  `(text, score)` pairs.
+- Offline, `get_embeddings()` returns `HashingEmbeddings` (deterministic
+  bag-of-words hashing, no network) — scores reward genuine token overlap
+  between query and fact text.
+
+```mermaid
+sequenceDiagram
+    participant M as main()
+    participant Mem as SemanticMemory
+    participant Store as InMemoryVectorStore
+    participant Emb as get_embeddings()
+
+    M->>Mem: write_facts(FACTS)
+    Mem->>Store: add_texts(texts, metadatas)
+    Store->>Emb: embed_documents(texts)
+    Emb-->>Store: vectors
+    Store-->>Mem: fact ids
+    Mem-->>M: ids
+
+    M->>Mem: recall("What is the capital of France?", k=2)
+    Mem->>Store: similarity_search(query, k=2)
+    Store->>Emb: embed_query(query)
+    Emb-->>Store: query vector
+    Store->>Store: rank all stored vectors by cosine similarity
+    Store-->>Mem: top-2 (document, score)
+    Mem-->>M: [(text, score), ...]
+```
+
+*Legend: the write half (top) happens once at startup; the read half
+(bottom) repeats once per query — both go through the same `Emb`
+(`get_embeddings()`), so writes and reads are embedded consistently.*
+
+**Flow notes**
+
+- `write_facts` is a fan-out: every fact text is embedded once via
+  `embed_documents` and stored alongside its metadata.
+- `recall` embeds the query alone via `embed_query`, then `similarity_search`
+  ranks it against every stored vector and returns the top-`k` matches.
+- Because writes and reads share the same embedder, a fact that shares
+  vocabulary with the query scores higher — deterministically, offline.
 
 ## Runnable Example
 

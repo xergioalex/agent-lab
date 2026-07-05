@@ -51,14 +51,31 @@ on you.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> flaky[flaky node]
-    flaky -->|error and attempts < max| flaky
-    flaky -->|error is None| finalize[finalize]
-    flaky -->|attempts >= max| fallback[fallback]
-    finalize --> END((END))
+flowchart TD
+    START([START]) --> flaky["flaky(state)"]
+    flaky -->|"context.error is None"| finalize["finalize"]
+    flaky -->|"error set and attempts >= max_attempts"| fallback["fallback"]
+    flaky -->|"error set and attempts < max_attempts"| flaky
+    finalize --> END([END])
     fallback --> END
 ```
+
+Legend: edge labels are `route_after_flaky`'s decision; the self-loop back
+onto `flaky` is the bounded retry path, and `fallback` is the circuit-breaker
+exit that guarantees the graph always reaches `END`.
+
+Flow notes:
+
+- `flaky` performs the (simulated) call, catches its own `TransientError`
+  locally, **logs** it, and encodes the result as `context.error` — it never
+  lets the exception propagate past the node.
+- `route_after_flaky` returns `"success"` once `context.error is None`.
+- It returns `"circuit_breaker"` (routing to `fallback`) once
+  `attempts >= max_attempts` — the retry budget is exhausted.
+- Otherwise it returns `"retry"`, looping back to `flaky` for another attempt
+  with exponential backoff already applied inside the node.
+- `finalize` is the happy-path exit; `fallback` is the degraded exit — both
+  lead to `END`, so the graph is guaranteed to terminate.
 
 Sequence for both scenarios exercised by the example:
 
@@ -91,6 +108,23 @@ sequenceDiagram
     Fb->>Fb: log error, build degraded result
     Fb-->>C: outcome=fallback, circuit_open=True
 ```
+
+The retry budget as a state machine — the circuit breaker's three terminal
+outcomes:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Attempting
+    Attempting --> Attempting: retry (error set, attempts < max_attempts)
+    Attempting --> Succeeded: context.error is None
+    Attempting --> CircuitOpen: attempts >= max_attempts
+    Succeeded --> [*]
+    CircuitOpen --> [*]
+```
+
+Legend: `Attempting` is the `flaky` node re-entered on every retry; it is
+bounded — every transition out of `Attempting` either loops back into it a
+finite number of times or leaves it for good via `Succeeded` or `CircuitOpen`.
 
 ## Runnable Example
 

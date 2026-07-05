@@ -48,17 +48,23 @@ though you're not re-reading it verbatim.
 ## Architecture
 
 ```mermaid
-graph TD
-    H[Full message history] --> B1[budget: before]
-    H --> Trim["trim_messages(max_tokens, strategy=last)"]
-    Trim --> B2[budget: after_trim]
-    H --> Mem[summarizing_memory_node]
-    Mem --> Old["old messages (all but keep_recent)"]
-    Mem --> Recent["recent messages (keep_recent, verbatim)"]
-    Old --> Sum["get_chat_model().invoke(...) -> summary text"]
-    Sum --> Ctx["state.context.summary"]
+flowchart TD
+    H["Full message history"] --> B1["budget(history)"]
+    H --> Trim["trim_to_budget(max_tokens=60, strategy='last')"]
+    Trim --> B2["budget(trimmed)"]
+    H --> Guard{"len(messages) <= keep_recent?"}
+    Guard -->|"yes"| NoOp["return {context: state.context} unchanged"]
+    Guard -->|"no"| Split["old, recent = messages[:-keep_recent], messages[-keep_recent:]"]
+    Split --> Old["old messages"]
+    Split --> Recent["recent messages (kept verbatim)"]
+    Old --> Sum["get_chat_model().invoke(joined old text) -> summary"]
+    Sum --> Ctx["context.summary + condensed_count + kept_recent"]
     Recent --> Ctx
 ```
+
+*Legend: the diamond is the only conditional in this module — the*
+*`summarizing_memory_node` guard — everything else (trimming) is an*
+*unconditional transform applied to the same input history.*
 
 Pipeline as a sequence:
 
@@ -81,6 +87,33 @@ sequenceDiagram
     Model-->>Mem: canned summary text
     Mem-->>Caller: {"context": {"summary": ..., "condensed_count": 9}}
 ```
+
+The two strategies as context-state transitions:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Full
+    Full --> Trimmed: trim_to_budget(history, max_tokens)
+    Full --> Condensed: summarizing_memory_node, len(messages) > keep_recent
+    Full --> Full: summarizing_memory_node, len(messages) <= keep_recent (no-op)
+    Trimmed --> [*]
+    Condensed --> [*]
+```
+
+Flow notes:
+
+- **`trim_to_budget`** always runs and always drops the oldest messages once
+  `max_tokens` is exceeded (`strategy="last"`, `include_system=True` keeps
+  the leading `SystemMessage` only if it still fits) — it never calls a
+  model and it never looks at `keep_recent`.
+- **`summarizing_memory_node`'s guard** (`len(messages) <= keep_recent`)
+  short-circuits to a no-op when there is nothing old enough to condense —
+  this is the one real branch in the module; it protects against summarizing
+  a transcript that is already short.
+- When the guard doesn't fire, the node **always** calls the model once
+  (`get_chat_model().invoke(...)`) to produce a fresh `context.summary`, and
+  **always** keeps the most recent `keep_recent` messages verbatim
+  alongside it — the two halves of the transcript are never both dropped.
 
 ## Runnable Example
 

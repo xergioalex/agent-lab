@@ -44,12 +44,27 @@ matters.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> Classify[classify_difficulty]
-    Classify -->|simple| Cheap[cheap_model_node]
-    Classify -->|complex| Capable[capable_model_node]
-    Cheap --> END((END))
-    Capable --> END
+flowchart LR
+    START(["START"]) --> classify["classify: classify_difficulty"]
+    classify -->|"difficulty == 'simple'"| cheap["cheap: cheap_model_node"]
+    classify -->|"difficulty == 'complex'"| capable["capable: capable_model_node"]
+    cheap --> END(["END"])
+    capable --> END
+```
+
+*Legend: node ids match the real `add_node("classify"|"cheap"|"capable", ...)`*
+*names; edge labels are the exact tier string `route_by_difficulty` returns*
+*from `context["difficulty"]`.*
+
+Tier selection as a state machine (what `classify_difficulty` decides):
+
+```mermaid
+stateDiagram-v2
+    [*] --> Classifying
+    Classifying --> Cheap: word_count <= 12 and no complex keyword
+    Classifying --> Capable: word_count > 12 or complex keyword matched
+    Cheap --> [*]: cost_usd = 0.0002
+    Capable --> [*]: cost_usd = 0.0100
 ```
 
 Sequence across two requests of different difficulty:
@@ -76,6 +91,20 @@ sequenceDiagram
     Cap->>Cap: get_chat_model(capable config).invoke(...)
     Cap-->>U: reply + cost_usd=0.01
 ```
+
+Flow notes:
+
+- **`difficulty == 'simple'`** fires when the request is `<= WORD_COUNT_THRESHOLD`
+  (12) words **and** matches none of `COMPLEX_KEYWORDS` — routes to `cheap`.
+- **`difficulty == 'complex'`** fires when the request is longer than the
+  threshold **or** matches any complex keyword (`"architecture"`,
+  `"compare"`, `"trade-off"`, `"root cause"`, `"design"`) — routes to
+  `capable`.
+- `classify` only reads the request and writes `context["difficulty"]`; the
+  actual model call (and its cost) happens inside whichever tier node
+  `route_by_difficulty` dispatches to.
+- Both tiers converge on `END` — there is no loop back to `classify`, so
+  each request is classified exactly once.
 
 ## Runnable Example
 

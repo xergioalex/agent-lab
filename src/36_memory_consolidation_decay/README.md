@@ -43,11 +43,76 @@ fades — it decays because nothing reinforced it.
 
 ## Architecture
 
+### Graph Structure
+
 ```mermaid
-graph LR
-    E[(raw episodes: text, tick)] -->|consolidate| T[MemoryTrace: occurrences, importance, last_tick]
-    T -->|decay: score vs now_tick, threshold| K[kept traces]
-    T -->|decay| D[dropped traces]
+flowchart TD
+    START([START]) --> Episodes[("RAW_EPISODES: text, tick")]
+    Episodes --> Consolidate["consolidate(episodes)"]
+    Consolidate -->|"text not in traces"| NewTrace["create MemoryTrace(last_tick=tick)"]
+    Consolidate -->|"text already in traces"| Merge["occurrences += 1, last_tick = max(...), importance += IMPORTANCE_BUMP_PER_REPEAT"]
+    NewTrace --> Traces["consolidated traces"]
+    Merge --> Traces
+    Traces --> Decay["decay(traces, now_tick, threshold)"]
+    Decay -->|"score = 0.5*recency + 0.5*importance >= DECAY_THRESHOLD"| Kept["kept traces"]
+    Decay -->|"score < DECAY_THRESHOLD"| Dropped["dropped traces"]
+    Kept --> END([END])
+    Dropped --> END
+```
+
+*Legend: the two edges out of `consolidate` distinguish a brand-new trace from a repeat that merges into an existing one; the two edges out of `decay` are the survive/forget outcome of the same scoring formula.*
+
+Flow notes:
+- `consolidate` merges episodes that share identical `text`: the first occurrence creates a `MemoryTrace`, and every repeat bumps `importance` by `IMPORTANCE_BUMP_PER_REPEAT` (capped at `1.0`) and refreshes `last_tick` to the more recent of the two.
+- `decay` always runs **after** consolidation so a trace that recurred often is judged by its most recent occurrence and its boosted importance, not by any single stale timestamp.
+- Each trace's decay score is `0.5 * recency + 0.5 * importance`; traces scoring `>= DECAY_THRESHOLD` are kept, the rest are dropped and logged.
+- Dropped traces are discarded entirely — the pipeline has no archive step, so `occurrences` history is lost once a trace decays.
+
+### State Machine — Trace Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: first occurrence of text recorded
+    Active --> Active: repeated occurrence (bump importance, refresh last_tick)
+    Active --> Consolidated: consolidate() returns the final MemoryTrace list
+    Consolidated --> Kept: decay() score >= DECAY_THRESHOLD
+    Consolidated --> Decayed: decay() score < DECAY_THRESHOLD
+    Kept --> [*]
+    Decayed --> [*]
+```
+
+*Legend: `Active` covers every repeat-merge inside `consolidate`; the transition into `Consolidated` happens once, when the consolidation pass finishes; `Kept`/`Decayed` are `decay`'s only two terminal outcomes.*
+
+Flow notes:
+- A trace stays in `Active` across every repeat occurrence — the self-loop is the `occurrences += 1` bump each time the same text recurs.
+- Once all episodes are processed, the trace set becomes `Consolidated` and is handed to `decay` as a whole.
+- `Kept` and `Decayed` are mutually exclusive and final for this run — there is no revival path back to `Active`.
+
+### Flow Over Time
+
+```mermaid
+sequenceDiagram
+    participant Main as main()
+    participant Con as consolidate()
+    participant Dec as decay()
+    Main->>Con: consolidate(RAW_EPISODES)
+    loop for each (text, tick) episode
+        alt text seen before
+            Con->>Con: bump importance, refresh last_tick, occurrences += 1
+        else first occurrence
+            Con->>Con: create new MemoryTrace
+        end
+    end
+    Con-->>Main: consolidated traces
+    Main->>Dec: decay(traces, NOW_TICK, DECAY_THRESHOLD)
+    loop for each MemoryTrace
+        Dec->>Dec: score = 0.5*recency + 0.5*importance
+        alt score >= DECAY_THRESHOLD
+            Dec-->>Main: trace kept
+        else score < DECAY_THRESHOLD
+            Dec-->>Main: trace dropped
+        end
+    end
 ```
 
 ## Runnable Example

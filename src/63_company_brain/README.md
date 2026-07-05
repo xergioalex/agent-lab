@@ -46,14 +46,41 @@ was said into a final answer for the person who asked.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> plan[plan: which specialists are needed?]
-    plan --> mem[memory_specialist]
-    mem --> graphS[graph_specialist]
-    graphS --> rag[rag_specialist]
-    rag --> agg[aggregate: merge findings]
-    agg --> END((END))
+flowchart TD
+    START(["START"]) --> plan["plan: _needed_specialists(text) -> needed"]
+    plan --> mem{"'memory' in needed?"}
+    mem -->|"yes"| memW["memory_specialist: write finding"]
+    mem -->|"no"| memN["memory_specialist: no-op"]
+    memW --> graphS{"'graph' in needed?"}
+    memN --> graphS
+    graphS -->|"yes"| graphW["graph_specialist: write finding"]
+    graphS -->|"no"| graphN["graph_specialist: no-op"]
+    graphW --> rag{"'rag' in needed?"}
+    graphN --> rag
+    rag -->|"yes"| ragW["rag_specialist: write finding"]
+    rag -->|"no"| ragN["rag_specialist: no-op"]
+    ragW --> agg["aggregate: merge findings, append memory_log"]
+    ragN --> agg
+    agg --> END(["END"])
 ```
+
+Legend: the diamonds are the internal `if name not in needed: return {}`
+guard each specialist evaluates — every specialist node always executes in
+this fixed sequence, but only writes a finding when its domain was planned;
+this is a **cooperation** pattern (run everyone, let each opt in), not a
+LangGraph conditional edge that skips a node entirely.
+
+Flow notes:
+
+- `plan` computes `needed` once, via keyword matching in
+  `_needed_specialists` (`memory`: remember/earlier/before/previously,
+  `graph`: manager/reports/alice/team/engineering, `rag`:
+  policy/vacation/deploy); every downstream node reads this same list.
+- Each specialist is a no-op pass-through (`return {}`) when its name is
+  absent from `needed` — it neither touches `findings` nor errors.
+- `aggregate` merges whatever `findings` exist (possibly zero, one, two, or
+  three) into one `" | "`-joined answer and appends it to the persistent
+  `memory_log`, which the caller must thread into the next `invoke()` call.
 
 Sequence of a two-specialist cooperative answer:
 

@@ -47,12 +47,16 @@ because the reducer does the merging for you.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> researcher[researcher]
-    researcher --> writer[writer]
-    writer --> converge[converge]
-    converge --> END((END))
+flowchart LR
+    START([START]) --> researcher["researcher(state)"]
+    researcher --> writer["writer(state)"]
+    writer --> converge["converge(state)"]
+    converge --> END([END])
 ```
+
+*Legend: this chain has no conditional edges — every node runs exactly once,
+in sequence; the interesting behavior is in **what each node writes to shared
+state**, shown below.*
 
 Cooperation loop for one topic:
 
@@ -71,6 +75,20 @@ sequenceDiagram
     C->>C: read context.draft, build final AIMessage
     C-->>U: final state
 ```
+
+**Flow notes:**
+- `researcher -> writer -> converge` is a fixed sequential chain — no
+  routing decision exists in this module (that arrives in module 49's
+  conditional loop).
+- `researcher` and `writer` both read `state.get("context", {})` and return
+  `{**context, "<own_key>": value}` — spreading first is what keeps their
+  writes disjoint on the reducer-less `context` field.
+- `scratchpad` needs no spread: its `operator.add` reducer concatenates every
+  node's appended list automatically, which is why each node simply returns
+  `{"scratchpad": [note]}`.
+- `converge` is the only node that reads *both* `context["research"]` (via
+  `context["draft"]`, which embeds it) and assembles the final `AIMessage` —
+  it never writes to `context` itself.
 
 ## Runnable Example
 

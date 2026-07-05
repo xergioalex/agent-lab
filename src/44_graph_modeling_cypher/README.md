@@ -60,22 +60,59 @@ no matter how many sticky notes you follow in a row.
 
 ## Architecture
 
-```mermaid
-graph LR
-    dana((dana:Person)) -->|OWNS| payments((payments:Project<br/>status=active))
-    dana -->|OWNS| legacy((legacy:Project<br/>status=deprecated))
-    evan((evan:Person)) -->|OWNS| search((search:Project<br/>status=active))
-    frida((frida:Person)) -->|OWNS| legacy
-```
+The example property graph seeded by `seed_project_graph`:
 
 ```mermaid
 flowchart LR
-    A["MATCH (p:Person)-[:OWNS]->(pr:Project {status: 'active'})"] --> B[find nodes labelled Person]
-    B --> C[walk outgoing OWNS relationships]
-    C --> D{end node label == Project<br/>and status == 'active'?}
-    D -->|yes| E[collect start, rel, end triple]
-    D -->|no| F[skip]
+    dana(("dana<br/>:Person<br/>seniority=senior")) -->|"OWNS"| payments(("payments<br/>:Project<br/>status=active"))
+    dana -->|"OWNS"| legacy(("legacy<br/>:Project<br/>status=deprecated"))
+    evan(("evan<br/>:Person<br/>seniority=junior")) -->|"OWNS"| search(("search<br/>:Project<br/>status=active"))
+    frida(("frida<br/>:Person<br/>seniority=senior")) -->|"OWNS"| legacy
 ```
+
+*Legend: node shapes are `:Label` graph nodes with their properties; every
+arrow is an `OWNS` relationship — the same edge the SQL join table would
+otherwise need.*
+
+`match()`'s pattern-matching algorithm — the Python analogue of
+`MATCH (a:Label)-[:REL]->(b:Label {filters}) RETURN a, r, b`:
+
+```mermaid
+flowchart TD
+    START([START]) --> input["match(store, start_label='Person', rel_type='OWNS', end_label='Project', status='active')"]
+    input --> findstart["store.find(label=start_label)"]
+    findstart -->|"loop: for start in matching Person nodes"| walkrel["walk store.relationships"]
+    walkrel --> checksrc{"rel.source == start.id<br/>and rel.type == rel_type?"}
+    checksrc -->|"no"| walkrel
+    checksrc -->|"yes"| resolveend["end = nodes_by_id[rel.target]"]
+    resolveend --> checklabel{"end_label is not None<br/>and end.label != end_label?"}
+    checklabel -->|"yes: skip"| walkrel
+    checklabel -->|"no"| checkfilters{"all(end.properties[k] == v<br/>for end_filters)?"}
+    checkfilters -->|"no: skip"| walkrel
+    checkfilters -->|"yes"| collect["collect (start, rel, end) triple"]
+    collect --> walkrel
+    walkrel -->|"all nodes/relationships visited"| sortresult["sort matches by (start.id, end.id)"]
+    sortresult --> END([END])
+```
+
+*Legend: each diamond is one `WHERE`-style filter from the Cypher pattern
+(`WHERE b:end_label`, `WHERE b.prop = value`); a "no" on any filter skips
+back to the relationship-walk loop instead of collecting a result.*
+
+**Flow notes**
+
+- `checksrc` implements the pattern's edge shape — only relationships
+  starting at a matched `start_label` node and typed `rel_type` are
+  considered; everything else is skipped without collecting.
+- `checklabel` implements `end_label` filtering (Cypher's `(b:Project)`);
+  when `end_label` is `None` (as in the unfiltered `MATCH
+  (p:Person)-[:OWNS]->(pr)` query), this check always passes.
+- `checkfilters` implements property filters on the end node (Cypher's
+  `{status: 'active'}` / `WHERE b.status = 'active'`) via `**end_filters`;
+  omitting them (as the second query in `main()` does) matches every
+  `OWNS` edge regardless of project status.
+- The final `sort` step exists purely so output order is deterministic —
+  it plays no role in *which* triples match, only in what order they print.
 
 ## Runnable Example
 

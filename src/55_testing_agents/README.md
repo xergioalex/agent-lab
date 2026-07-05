@@ -49,19 +49,66 @@ labeled test item, so you can verify the mechanism itself.
 
 ## Architecture
 
+The system under test is the same manual tool-call loop as module 17:
+
 ```mermaid
-graph LR
-    Q[Query] --> A[agent node]
-    A -->|tool_calls?| R{has_pending_tool_calls}
-    R -->|yes| T[ToolNode]
-    R -->|no| E[END]
-    T --> A
-    E --> RES[Result state]
-    RES --> SN[snapshot]
-    RES --> SC[structural_checks]
-    SN --> CMP{snapshot_a == snapshot_b}
-    SC --> ASSERT[assert all invariants]
+flowchart TD
+    START([START]) --> agent["agent(state)"]
+    agent --> route{"has_pending_tool_calls(state)"}
+    route -->|"'tools' (last AIMessage.tool_calls non-empty)"| tools["tools: ToolNode(DEMO_TOOLS)"]
+    route -->|"'end' (no pending tool calls)"| END([END])
+    tools --> agent
 ```
+
+*Legend: the edge labels are the literal strings `has_pending_tool_calls`
+returns; the loop `tools -> agent` repeats until the model stops emitting
+tool calls or `MAX_TOOL_CALLS` is reached inside the fake model.*
+
+The tests exercise this graph twice, then check the two runs the same way:
+
+```mermaid
+sequenceDiagram
+    participant M as main
+    participant G as app (compiled graph)
+    participant Snap as snapshot()
+    participant Chk as structural_checks()
+
+    M->>G: invoke(query) -> result_a
+    M->>G: invoke(query) -> result_b
+    M->>Snap: snapshot(result_a)
+    Snap-->>M: snapshot_a
+    M->>Snap: snapshot(result_b)
+    Snap-->>M: snapshot_b
+    M->>M: snapshots_match = snapshot_a == snapshot_b
+    alt snapshots differ
+        M-->>M: raise AssertionError (nondeterminism leaked in)
+    else snapshots match
+        M->>Chk: structural_checks(result_a)
+        Chk-->>M: [(name, passed), ...]
+        M->>M: all_passed = all(passed for _, passed in checks)
+        alt any check failed
+            M-->>M: raise AssertionError (invariant violated)
+        else all passed
+            M-->>M: print PASS lines, complete
+        end
+    end
+```
+
+**Flow notes:**
+- `has_pending_tool_calls` returns `"tools"` only when the last message is an
+  `AIMessage` **and** it has pending `tool_calls`; otherwise it returns
+  `"end"` — the same shape as module 17's manual loop.
+- `snapshot()` strips nondeterministic fields (message ids, exact tool-call
+  ids) and keeps only `num_messages`, `roles`, `tool_calls`, and
+  `final_role` — that reduced shape is what must be identical across the two
+  invocations for `snapshots_stable_across_runs` to hold.
+- `structural_checks()` asserts five invariants (at least one message, final
+  message is an `AIMessage` with no pending tool calls, every tool call has
+  an id, tool-call count within `MAX_TOOL_CALLS`) — none of them reference
+  the exact text of any message.
+- Both failure paths (`snapshots_match is False`, any check `not passed`)
+  raise `AssertionError` rather than silently continuing — a test module
+  intentionally fails loud.
 
 ## Runnable Example
 

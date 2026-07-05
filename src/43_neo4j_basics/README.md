@@ -49,25 +49,81 @@ take off.
 
 ## Architecture
 
+The example property graph seeded by `seed_property_graph`:
+
 ```mermaid
-graph LR
-    subgraph "Property Graph"
-        alice((alice:Person)) -->|WORKS_AT since=2021| acme((acme:Company))
-        bob((bob:Person)) -->|WORKS_AT since=2018| acme
-        alice -->|REPORTS_TO| bob
+flowchart LR
+    subgraph PropertyGraph["Property Graph"]
+        alice(("alice<br/>:Person<br/>name=Alice, title=Engineer"))
+        bob(("bob<br/>:Person<br/>name=Bob, title=Manager"))
+        acme(("acme<br/>:Company<br/>name=Acme Corp"))
+        alice -->|"WORKS_AT since=2021"| acme
+        bob -->|"WORKS_AT since=2018"| acme
+        alice -->|"REPORTS_TO"| bob
     end
 ```
+
+*Legend: node shapes are graph nodes labelled `:Label`; edge labels are the
+relationship `TYPE` plus its properties — `store.neighbors("alice")` walks
+only the outgoing arrows above (`acme`, `bob`), never the reverse.*
 
 Backend selection at startup:
 
 ```mermaid
 flowchart TD
-    A[build_graph_store] --> B{NEO4J_URI set?}
-    B -->|yes| C[import neo4j lazily]
-    C --> D[Neo4jGraphBackend]
-    B -->|no| E[InMemoryGraphStore]
-    D -->|connection fails| E
+    START([START]) --> build["build_graph_store()"]
+    build --> check{"settings.has_neo4j()<br/>(NEO4J_URI set?)"}
+    check -->|"yes"| lazy["Neo4jGraphBackend.__init__:<br/>lazy import neo4j.GraphDatabase"]
+    lazy --> connect{"driver connects OK?"}
+    connect -->|"yes"| real["Neo4jGraphBackend (real driver)"]
+    connect -->|"no: exception"| fallback["InMemoryGraphStore() (logged fallback)"]
+    check -->|"no"| fallback
+    real --> seed["seed_property_graph() / describe()"]
+    fallback --> seed
+    seed --> END([END])
 ```
+
+*Legend: the `has_neo4j()` diamond is the primary online/offline branch; the
+nested `driver connects OK?` diamond is the `try/except` around
+`Neo4jGraphBackend(...)` in `build_graph_store` — either failure path lands
+on the same `InMemoryGraphStore` fallback.*
+
+```mermaid
+sequenceDiagram
+    participant Caller as main()
+    participant Settings as get_settings()
+    participant Store as build_graph_store()
+    participant Backend as Graph backend
+
+    Caller->>Settings: has_neo4j()?
+    alt NEO4J_URI configured
+        Settings-->>Store: True
+        Store->>Store: Neo4jGraphBackend(uri, user, password)
+        alt driver connects
+            Store-->>Backend: Neo4jGraphBackend
+        else connection raises
+            Store-->>Backend: InMemoryGraphStore (logged fallback)
+        end
+    else NEO4J_URI not set (this script's default path)
+        Settings-->>Store: False
+        Store-->>Backend: InMemoryGraphStore
+    end
+    Caller->>Backend: seed_property_graph() / describe()
+    Backend-->>Caller: nodes, relationships, alice's neighbors
+```
+
+**Flow notes**
+
+- `build_graph_store()` checks `settings.has_neo4j()` once; `False` (the
+  default, offline path) returns `InMemoryGraphStore()` directly, never
+  importing `neo4j`.
+- `True` attempts `Neo4jGraphBackend(...)`; the `neo4j` package import lives
+  inside `Neo4jGraphBackend.__init__`, so it is only ever touched on this
+  branch.
+- If constructing the real backend raises (no reachable server, bad
+  credentials), the `except Exception` clause logs the error and falls back
+  to `InMemoryGraphStore()` — the same object the "no `NEO4J_URI`" branch
+  returns, so callers never need to branch on which path was taken.
 
 ## Runnable Example
 

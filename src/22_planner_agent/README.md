@@ -46,10 +46,32 @@ catch that on paper, before money changes hands.
 
 ## Architecture
 
+The compiled graph has a single node — the interesting logic lives inside it:
+
 ```mermaid
-graph LR
-    START((START)) --> plan[plan: goal -> Plan schema -> ordered steps]
-    plan --> END((END))
+flowchart LR
+    START(["START"]) --> plan["plan: plan_node"]
+    plan --> END(["END"])
+```
+
+*Legend: node id matches `add_node("plan", plan_node)`; there is only one*
+*node and no conditional edges at the graph level — every branch below*
+*happens **inside** `plan_node`, not between LangGraph nodes.*
+
+`plan_node`'s internal decision logic (`_derive_steps` / `_validate_plan`):
+
+```mermaid
+flowchart TD
+    Goal["goal (latest HumanMessage)"] --> SO["planner = get_chat_model().with_structured_output(Plan)"]
+    SO --> PlanObj["Plan(goal=..., step_count=...)"]
+    Goal --> DS["_derive_steps(goal)"]
+    DS -->|"a tool name's keyword found in goal"| Matched["steps = matched tool name(s), in _TOOL_NAMES order"]
+    DS -->|"no tool keyword matches"| Fallback["steps = ['respond_directly']"]
+    Matched --> VP["_validate_plan(steps)"]
+    Fallback --> VP
+    VP -->|"steps is empty"| Raise1["raise ValueError('planner produced an empty plan')"]
+    VP -->|"unknown step name present"| Raise2["raise ValueError('plan references unknown step(s)')"]
+    VP -->|"all steps known and non-empty"| Ctx["return context = {goal, steps}"]
 ```
 
 ```mermaid
@@ -66,6 +88,25 @@ sequenceDiagram
     D->>D: _validate_plan(steps) -- raises on empty/unknown
     P-->>U: context = {goal, steps}
 ```
+
+Flow notes:
+
+- **`with_structured_output(Plan)`** guarantees the *shape* of the model's
+  reply (a `Plan` instance with `goal`/`step_count` fields) — it says
+  nothing about whether the plan is semantically correct.
+- **`_derive_steps` keyword match** — a step is included whenever one of its
+  name's underscore-split tokens (e.g. `get`/`weather`) appears in the
+  lowercased goal text; order follows `_TOOL_NAMES`, not the goal's word
+  order.
+- **`_derive_steps` fallback** — if no tool keyword matches at all, the plan
+  is `["respond_directly"]` rather than empty, so there is always at least
+  one step to validate.
+- **`_validate_plan` empty-plan guard** — raises if `steps` is falsy (should
+  be unreachable given the fallback above, but guards against a future
+  change to `_derive_steps`).
+- **`_validate_plan` unknown-step guard** — raises if any step name is not
+  in `_TOOL_NAMES` or the fallback name — a plan is never handed to an
+  executor with a step it can't run.
 
 ## Runnable Example
 

@@ -44,15 +44,63 @@ notes from that point on.
 ## Architecture
 
 ```mermaid
-graph LR
-    M[AgentState.messages] --> B[buffer_all]
-    M --> W[window_last_n]
-    M --> S[summarize_overflow]
-    B --> B1[all turns, unbounded]
-    W --> W1[last N turns only]
-    S --> S1[summary of evicted head]
-    S --> S2[last N turns verbatim]
+flowchart TD
+    messages["AgentState.messages (6 turns)"] --> buffer_all["buffer_all(messages)"]
+    messages --> window_last_n["window_last_n(messages, n=3)"]
+    messages --> summarize_overflow["summarize_overflow(messages, n=3)"]
+    buffer_all --> bufOut["all N turns, unbounded"]
+    window_last_n --> winOut["last 3 turns only, rest dropped"]
+    summarize_overflow --> sumA["digest of evicted head (messages[:-3])"]
+    summarize_overflow --> sumB["last 3 turns verbatim (messages[-3:])"]
 ```
+
+*Legend: each arrow out of `messages` is an independent strategy applied to
+the same 6-turn conversation; none of them mutate `AgentState["messages"]`
+itself — they only read it.*
+
+**Flow notes**
+
+- `buffer_all` returns `str(content)` for every message — unbounded, cost
+  grows linearly with conversation length.
+- `window_last_n(messages, n)` slices `messages[-n:]` — bounded cost, but
+  anything before the cutoff is silently gone, not compressed.
+- `summarize_overflow(messages, n)` splits the conversation into
+  `evicted = messages[:-n]` and `kept = messages[-n:]`; when `evicted` is
+  non-empty it builds a deterministic digest from the first 20 characters of
+  each evicted message, otherwise it returns `"(no overflow)"`.
+
+```mermaid
+sequenceDiagram
+    participant Conv as CONVERSATION (6 turns)
+    participant Buf as buffer_all
+    participant Win as window_last_n(n=3)
+    participant Sum as summarize_overflow(n=3)
+
+    Conv->>Buf: all 6 messages
+    Buf-->>Conv: 6 message(s) retained (all)
+
+    Conv->>Win: all 6 messages
+    Win->>Win: keep messages[-3:], drop messages[:-3]
+    Win-->>Conv: 3 message(s) retained
+
+    Conv->>Sum: all 6 messages
+    Sum->>Sum: evicted = messages[:-3]; kept = messages[-3:]
+    Sum->>Sum: build "[summary of 3 earlier turn(s): ...]" from evicted
+    Sum-->>Conv: summary string + 3 verbatim message(s)
+```
+
+*Legend: each lifeline receives the same conversation independently — the
+three strategies never run in sequence on one another; this diagram shows
+what each keeps vs. discards, not a compiled LangGraph run.*
+
+**Flow notes**
+
+- `buffer_all` never evicts, so every turn is returned in order.
+- `window_last_n` keeps only the tail slice `messages[-3:]`; the first 3
+  turns are dropped with no trace.
+- `summarize_overflow` keeps the same tail slice verbatim, but additionally
+  returns a one-line digest of the dropped head so the gist survives even
+  though the exact wording doesn't.
 
 ## Runnable Example
 

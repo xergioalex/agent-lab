@@ -47,12 +47,30 @@ the moment the manager stops delegating.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> Agent[agent: model.bind_tools invoke]
-    Agent -->|tool_calls present| Tools[ToolNode: execute + append ToolMessages]
-    Tools --> Agent
-    Agent -->|no tool_calls| END((END))
+flowchart TD
+    START([START]) --> agent["agent(state): model.invoke(messages)"]
+    agent -->|"tool_calls present"| tools["tools: ToolNode(DEMO_TOOLS)"]
+    agent -->|"no tool_calls"| END([END])
+    tools --> agent
 ```
+
+Legend: edge labels are `has_pending_tool_calls`'s decision; `tools -> agent`
+is the loop-back that lets the model see every tool's result before deciding
+whether to call again or answer.
+
+Flow notes:
+
+- `agent` calls the `bind_tools` model with the full running `messages` list
+  and appends the resulting `AIMessage` (which may carry `tool_calls`).
+- `has_pending_tool_calls` only reads `state["messages"][-1]`: if it is an
+  `AIMessage` with a non-empty `.tool_calls`, it returns `"tools"`; otherwise
+  `"end"`.
+- `tools` (`ToolNode`) executes every requested tool call and appends one
+  `ToolMessage` per call, correlated by `tool_call_id`.
+- The `tools -> agent` loop repeats — with no fixed iteration cap in the
+  graph itself, only via `FakeToolCallingModel`'s `max_tool_calls` here —
+  until the model replies with plain text and no `tool_calls`, letting a
+  multi-step plan (weather lookup, then Slack post) finish before `END`.
 
 Sequence of the sample run (weather lookup, then a Slack post):
 

@@ -54,22 +54,93 @@ Checkout" (hop 1), then read each of *those* cards' team line (hop 2).
 
 ## Architecture
 
+The org chart is modeled as a **property graph**: `Person`, `Team`, and
+`Project` nodes connected by four distinct relationship types. Every query in
+this module is a traversal over these edges — no join table required.
+
 ```mermaid
-graph TD
-    grace((grace:Person<br/>Director)) 
-    hank((hank:Person<br/>Eng Manager)) -->|REPORTS_TO| grace
-    iris((iris:Person<br/>Engineer)) -->|REPORTS_TO| hank
-    jamal((jamal:Person<br/>Engineer)) -->|REPORTS_TO| hank
+flowchart TD
+    subgraph People["People (Person)"]
+        grace["grace: Director"]
+        hank["hank: Eng Manager"]
+        iris["iris: Engineer"]
+        jamal["jamal: Engineer"]
+    end
+    subgraph Teams["Teams (Team)"]
+        platform["platform"]
+        growth["growth"]
+    end
+    subgraph Projects["Projects (Project)"]
+        checkout["checkout"]
+        onboarding["onboarding"]
+    end
 
-    hank -->|MEMBER_OF| platform((platform:Team))
+    hank -->|REPORTS_TO| grace
+    iris -->|REPORTS_TO| hank
+    jamal -->|REPORTS_TO| hank
+
+    hank -->|MEMBER_OF| platform
     iris -->|MEMBER_OF| platform
-    jamal -->|MEMBER_OF| growth((growth:Team))
+    jamal -->|MEMBER_OF| growth
 
-    hank -->|OWNS| checkout((checkout:Project))
+    hank -->|OWNS| checkout
     iris -->|WORKS_ON| checkout
     jamal -->|WORKS_ON| checkout
-    jamal -->|WORKS_ON| onboarding((onboarding:Project))
+    jamal -->|WORKS_ON| onboarding
 ```
+
+*Legend: boxes are grouped by node label (Person/Team/Project); every edge
+label is a relationship type, directed `source -> target` exactly as stored
+via `store.add_relationship(source, type, target)`.*
+
+Every query composes one or two **one-hop reverse lookups** (`incoming`) —
+`who_owns` and `who_reports_to` stop after hop 1; `which_teams_touch` chains a
+second, forward hop (`store.neighbors`) onto the first:
+
+```mermaid
+flowchart LR
+    entry(["query(store, id)"]) --> hop1["incoming(store, id, rel_type):\nreverse scan for source where target == id"]
+    hop1 -->|"who_owns: rel_type='OWNS'"| owners["result: owning Person(s)"]
+    hop1 -->|"who_reports_to: rel_type='REPORTS_TO'"| reports["result: reporting Person(s)"]
+    hop1 -->|"which_teams_touch: rel_type='WORKS_ON'"| workers["workers: Person(s)"]
+    workers --> hop2["store.neighbors(person.id, 'MEMBER_OF'):\nforward hop, once per worker"]
+    hop2 --> teams["result: de-duplicated Team(s)"]
+```
+
+Concrete trace for the only two-hop query, `which_teams_touch(store,
+"checkout")`:
+
+```mermaid
+sequenceDiagram
+    participant M as main
+    participant Q as which_teams_touch
+    participant I as incoming (hop 1)
+    participant R as store.relationships
+    participant N as store.neighbors (hop 2)
+
+    M->>Q: which_teams_touch(store, "checkout")
+    Q->>I: incoming(store, "checkout", "WORKS_ON")
+    I->>R: scan for rel.type == "WORKS_ON" and rel.target == "checkout"
+    R-->>I: source ids {"iris", "jamal"}
+    I-->>Q: workers = [iris, jamal]
+    loop for each worker
+        Q->>N: store.neighbors(worker.id, "MEMBER_OF")
+    end
+    N-->>Q: teams = {platform, growth}
+    Q-->>M: sorted([growth, platform])
+```
+
+**Flow notes:**
+- `who_owns(project)` — one hop: `incoming(store, project, "OWNS")`; no
+  further traversal.
+- `who_reports_to(manager)` — one hop: `incoming(store, manager,
+  "REPORTS_TO")`; no further traversal.
+- `which_teams_touch(project)` — two hops: hop 1 reverses `WORKS_ON` to find
+  every person working on the project; hop 2 forwards `MEMBER_OF` from each
+  of those people to their team(s), de-duplicated via a `dict` keyed by team
+  id.
+- `incoming()` is the one shared primitive every one-hop query reuses; it is
+  the only place a full scan of `store.relationships` happens.
 
 ## Runnable Example
 

@@ -41,12 +41,38 @@ waiting for a ticket that will never come.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) -->|steps present| execute_step[execute_step]
-    START -->|no steps| finalize[finalize]
-    execute_step -->|more steps remain| execute_step
-    execute_step -->|done| finalize
-    finalize --> END((END))
+flowchart LR
+    START(["START"]) -->|"context.steps is non-empty"| execute_step["execute_step"]
+    START -->|"context.steps is empty"| finalize["finalize"]
+    execute_step -->|"index < len(steps)"| execute_step
+    execute_step -->|"index == len(steps)"| finalize
+    finalize --> END(["END"])
+```
+
+*Legend: node ids match `add_node("execute_step", ...)` /*
+*`add_node("finalize", ...)`; both conditional edges out of `START` and*
+*`execute_step` are real routers (`route_initial`, `route_after_step`) that*
+*only read `context`, never mutate it.*
+
+Per-step outcome as a state machine (what happens inside `execute_step`):
+
+```mermaid
+stateDiagram-v2
+    [*] --> Routing
+    Routing --> Executing: route_initial -- steps non-empty
+    Routing --> Finalizing: route_initial -- steps empty
+    Executing --> ToolFound: _TOOLS_BY_NAME.get(step) is not None
+    Executing --> ToolMissing: _TOOLS_BY_NAME.get(step) is None
+    ToolFound --> Success: tool.invoke(...) returns
+    ToolFound --> Failed: tool.invoke(...) raises
+    ToolMissing --> Skipped: outcome = "skipped: no tool for step ..."
+    Success --> Executing: route_after_step -- index < len(steps)
+    Failed --> Executing: route_after_step -- index < len(steps)
+    Skipped --> Executing: route_after_step -- index < len(steps)
+    Success --> Finalizing: route_after_step -- index == len(steps)
+    Failed --> Finalizing: route_after_step -- index == len(steps)
+    Skipped --> Finalizing: route_after_step -- index == len(steps)
+    Finalizing --> [*]
 ```
 
 ```mermaid
@@ -65,6 +91,21 @@ sequenceDiagram
     E->>F: route_after_step -> "finalize" (index=2 == 2)
     F-->>U: context.summary = "executed 2 step(s): [...]"
 ```
+
+Flow notes:
+
+- **`context.steps is empty`** — `route_initial` sends state straight to
+  `finalize`, skipping `execute_step` entirely; this is what prevents
+  `steps[0]` from raising `IndexError` on an empty plan.
+- **`_TOOLS_BY_NAME.get(step) is None`** — the plan named a step with no
+  registered tool; `execute_step` records `"skipped: no tool for step ..."`
+  and moves on, it never raises.
+- **`tool.invoke(...) raises`** — caught by the `except Exception` clause,
+  logged via `logger.error`, and recorded as `"failed: {exc}"` — the run
+  continues rather than crashing.
+- **`index < len(steps)`** vs **`index == len(steps)`** — `route_after_step`
+  is the only thing deciding whether the loop continues or finalizes; it
+  never inspects the *content* of a result, only the position.
 
 ## Runnable Example
 

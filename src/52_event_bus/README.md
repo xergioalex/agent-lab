@@ -54,18 +54,22 @@ or drop out without the transmitter ever being reconfigured.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> dispatch[dispatch_events]
-    dispatch --> summarize[summarize]
-    summarize --> END((END))
+flowchart LR
+    START([START]) --> dispatch["dispatch_events(state)"]
+    dispatch --> summarize["summarize(state)"]
+    summarize --> END([END])
 
-    subgraph "inside dispatch_events: the bus"
-        pub1[publish research.requested] -.-> sub1[researcher_handler]
-        pub1 -.-> sub2[auditor_handler]
-        pub2[publish draft.requested] -.-> sub3[writer_handler]
-        pub2 -.-> sub2
+    subgraph bus["inside dispatch_events: the EventBus"]
+        pub1["publish('research.requested', payload)"] -.->|"subscribed"| sub1["researcher_handler"]
+        pub1 -.->|"subscribed"| sub2["auditor_handler"]
+        pub2["publish('draft.requested', payload)"] -.->|"subscribed"| sub3["writer_handler"]
+        pub2 -.->|"subscribed"| sub2
     end
 ```
+
+*Legend: solid arrows are the two-node LangGraph chain; dotted arrows inside
+the `bus` subgraph are pub/sub dispatch — routing resolved dynamically at
+`publish()` time via the subscription table, not hard-wired graph edges.*
 
 Event delivery sequence:
 
@@ -93,6 +97,22 @@ sequenceDiagram
     A-->>Bus: "logged event for audit: reducers"
     Bus-->>D: delivered event log (4 entries)
 ```
+
+**Flow notes:**
+- `dispatch_events` registers all four subscriptions up front, then calls
+  `bus.publish(topic, payload, log)` once per entry in `EVENTS` — the
+  publisher never references `researcher_handler` or `writer_handler`
+  directly, only the topic string.
+- `EventBus.publish` looks up `self._subscribers.get(topic, [])` **at publish
+  time**; if the list is empty it appends `"(no subscribers)"` to the log
+  instead of raising — a mistyped or retired topic fails silently-but-visibly.
+- `"research.requested"` has two subscribers (`researcher_handler`,
+  `auditor_handler`); `"draft.requested"` has two different ones
+  (`writer_handler`, `auditor_handler`) — `auditor_handler` is subscribed to
+  both, demonstrating one handler can listen on multiple topics.
+- Handlers are invoked in **subscription order** within a topic
+  (`self._subscribers[topic]` is an ordered list), which is the only
+  ordering guarantee this in-process bus makes.
 
 ## Runnable Example
 

@@ -46,15 +46,35 @@ around the form.
 
 ## Architecture
 
+This is a plain retry loop (`parse_with_retry`), not a compiled LangGraph —
+the diagram below shows the call/validate/repair cycle:
+
 ```mermaid
-graph TD
-    Q[Raw request text] --> S["model.with_structured_output(TicketSummary)"]
-    S --> V{"Schema construction\n(field validators run)"}
-    V -->|valid| R[Typed TicketSummary]
-    V -->|ValidationError| P[Repair prompt]
+flowchart TD
+    Q["Raw request text"] --> S["structured.invoke(attempt_text)"]
+    S --> V{"TicketSummary(**fields)\nfield_validator runs"}
+    V -->|"valid"| R["Typed TicketSummary"]
+    V -->|"ValidationError, attempt < max_attempts"| P["repair_prompt(attempt_text)"]
     P --> S
-    R --> Done[Return validated result]
+    R --> Done["return (result, attempt)"]
 ```
+
+Legend: the diamond is the schema/business-rule validation decision; the
+loop back from `repair_prompt` to `structured.invoke` is the bounded
+retry path — capped by `max_attempts`, after which the loop raises
+`RuntimeError` instead of looping forever (see the state diagram below).
+
+Flow notes:
+
+- `structured.invoke(attempt_text)` asks the model for fields and
+  constructs `TicketSummary(**fields)`.
+- The diamond is both **type** validation (Pydantic) and **business-rule**
+  validation (`@field_validator category_must_be_known`) in one step.
+- `"valid"` returns the typed instance plus the attempt number it took.
+- `"ValidationError"` (while attempts remain) logs the rejection and calls
+  `_repair_prompt` to normalize `attempt_text` before looping back.
+- Exhausting `max_attempts` without a valid result raises `RuntimeError` —
+  the loop is bounded, it never retries indefinitely.
 
 Parse → validate → retry, as a sequence:
 
@@ -80,6 +100,23 @@ sequenceDiagram
         end
     end
 ```
+
+The bounded validate/retry loop as a state machine:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Invoking
+    Invoking --> Validating: structured.invoke(attempt_text)
+    Validating --> Valid: passes field_validator
+    Validating --> Invoking: ValidationError, attempt < max_attempts (repair prompt)
+    Validating --> Failed: ValidationError, attempt == max_attempts
+    Valid --> [*]
+    Failed --> [*]
+```
+
+Legend: `Invoking` is re-entered once per repaired prompt; every retry either
+returns to `Invoking` a bounded number of times or leaves for good via
+`Valid` (typed result) or `Failed` (`RuntimeError` — budget exhausted).
 
 ## Runnable Example
 

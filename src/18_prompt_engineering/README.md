@@ -48,14 +48,59 @@ asking your real question — they complete the pattern instead of guessing.
 ## Architecture
 
 ```mermaid
-graph LR
-    subgraph Naive
-        Q1["{question}"] --> T1[NAIVE_PROMPT] --> M1[HumanMessage only] --> R1[Model: generic reply]
+flowchart TD
+    subgraph Naive["Naive path"]
+        Q1["question"] --> NP["NAIVE_PROMPT.format_messages(question)"]
+        NP --> NM1["[HumanMessage(question)]"]
+        NM1 --> NMOD["naive_model = get_chat_model()"]
+        NMOD --> NR["naive_reply: generic echo (no canned response set)"]
     end
-    subgraph Engineered
-        Sys[System persona] --> Ex1[few-shot example 1] --> Ex2[few-shot example 2] --> Q2["{question}"] --> T2[ENGINEERED_PROMPT] --> M2[System + examples + question] --> R2[Model: on-format reply]
+    subgraph Engineered["Engineered path"]
+        SYS["system: terse ticket-triage persona"] --> FS1["few-shot 1: human/ai pair"]
+        FS1 --> FS2["few-shot 2: human/ai pair"]
+        FS2 --> Q2["question"]
+        Q2 --> EP["ENGINEERED_PROMPT.format_messages(question)"]
+        EP --> EM1["[System, Human, AI, Human, AI, Human]"]
+        EM1 --> EMOD["engineered_model = get_chat_model(responses=[...])"]
+        EMOD --> ER["engineered_reply: 'CATEGORY: bug | ACTION: escalate to engineering'"]
     end
 ```
+
+*Legend: there are no conditional edges in this module — both paths are*
+*straight-line pipelines; the "decision" is which `ChatPromptTemplate` you*
+*build in the first place, not a runtime branch.*
+
+Rendering order, side by side:
+
+```mermaid
+sequenceDiagram
+    participant Caller as main()
+    participant NP as NAIVE_PROMPT
+    participant EP as ENGINEERED_PROMPT
+    participant NM as naive_model
+    participant EM as engineered_model
+
+    Caller->>NP: format_messages(question)
+    NP-->>Caller: [HumanMessage] (1 message)
+    Caller->>EP: format_messages(question)
+    EP-->>Caller: [System, Human, AI, Human, AI, Human] (6 messages)
+    Caller->>NM: invoke(naive_messages)
+    NM-->>Caller: "[offline] Echo: ..." (no format contract)
+    Caller->>EM: invoke(engineered_messages)
+    EM-->>Caller: "CATEGORY: bug | ACTION: escalate to engineering"
+```
+
+Flow notes:
+
+- **Naive path** renders to a single `HumanMessage` — no persona, no
+  examples — so the (offline) model has nothing to imitate and falls back to
+  an echo.
+- **Engineered path** prepends a `system` persona, then two `human`/`ai`
+  few-shot pairs, before the real `question` — six rendered messages in
+  total, in the exact order they were appended in `_engineered_messages`.
+- Both templates render through the same `.format_messages(**kwargs)` call;
+  the difference readers should notice is entirely in *what* was templated,
+  not *how* it was rendered.
 
 ## Runnable Example
 

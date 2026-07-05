@@ -54,14 +54,54 @@ the manager to pick 1 — never the other way around.
 ## Architecture
 
 ```mermaid
-graph LR
-    Q[Query] --> S1[Stage 1: bi-encoder InMemoryVectorStore.similarity_search]
-    C[Corpus] --> S1
-    S1 --> Cand[Top-k candidates]
-    Cand --> S2[Stage 2: cross_encoder_score per candidate]
-    Q --> S2
-    S2 --> Rank[Reranked list]
+flowchart TD
+    START([START]) --> S1["first_stage_retrieve(query, CORPUS, k=FIRST_STAGE_K)"]
+    S1 --> bi["InMemoryVectorStore.similarity_search(query, k=4)"]
+    bi --> cand["first-stage candidates (bi_encoder_score per doc)"]
+    cand -->|"loop: for result in candidates"| ce["cross_encoder_score(query, text)"]
+    ce --> coverage["coverage = matched_tokens / query_tokens"]
+    ce --> phrase["phrase_bonus = 1.0 if exact phrase in text else 0.0"]
+    ce --> length["length_fit = 1 / (1 + abs(len diff) * 0.1)"]
+    coverage --> combine["score = coverage*2 + phrase_bonus*1 + length_fit*0.5"]
+    phrase --> combine
+    length --> combine
+    combine --> sort["rerank(): sort candidates desc by score"]
+    sort --> delta["compute positions_gained per doc_id"]
+    delta --> END([END])
 ```
+
+*Legend: the loop over "for result in candidates" is stage 2 re-scoring
+each stage-1 candidate independently — no candidate can be promoted unless
+it survived stage 1 first.*
+
+```mermaid
+sequenceDiagram
+    participant Q as Query
+    participant VS as InMemoryVectorStore (bi-encoder)
+    participant CE as cross_encoder_score (cross-encoder heuristic)
+
+    Q->>VS: similarity_search(query, k=4)
+    VS-->>Q: first_stage_ranking [doc-decoy, doc-precise, doc-oncall, doc-standup]
+    loop for each first-stage candidate
+        Q->>CE: cross_encoder_score(query, candidate.text)
+        CE-->>Q: coverage + phrase_bonus + length_fit score
+    end
+    Q->>Q: rerank(): sort by cross-encoder score desc
+    Q-->>Q: reranked_ranking [doc-precise, doc-decoy, ...] (top_changed=True)
+```
+
+**Flow notes**
+
+- Stage 1 (`first_stage_retrieve`) is the cheap bi-encoder pass: query and
+  every candidate are embedded independently and compared by cosine
+  similarity — it decides *recall* (what makes the candidate set at all).
+- Stage 2 (`rerank` → `cross_encoder_score`) only ever sees the candidates
+  stage 1 already returned; there is no branch back to stage 1, so a
+  document stage 1 dropped can never be rescued by reranking.
+- `cross_encoder_score` combines three pair-level signals a bi-encoder
+  cannot see: token **coverage**, exact-**phrase** containment, and
+  **length-fit** — this is what lets `doc-precise` overtake the
+  keyword-stuffed `doc-decoy` in the final ranking.
 
 ## Runnable Example
 

@@ -54,23 +54,81 @@ loop is the cycle this module's `find_cycle` reports.
 
 ## Architecture
 
-```mermaid
-graph TD
-    webapp((webapp)) -->|DEPENDS_ON| api((api))
-    api -->|DEPENDS_ON| auth((auth))
-    api -->|DEPENDS_ON| db((db))
-    auth -->|DEPENDS_ON| db
-```
+The clean DAG from `build_package_dag` (a `DEPENDS_ON` edge means "the
+source needs the target to run/build first"):
 
 ```mermaid
-graph LR
-    task_a((task_a)) -->|DEPENDS_ON| task_b((task_b))
-    task_b -->|DEPENDS_ON| task_c((task_c))
-    task_c -->|DEPENDS_ON| task_a
+flowchart TD
+    webapp(("webapp<br/>:Package")) -->|"DEPENDS_ON"| api(("api<br/>:Package"))
+    api -->|"DEPENDS_ON"| auth(("auth<br/>:Package"))
+    api -->|"DEPENDS_ON"| db(("db<br/>:Package"))
+    auth -->|"DEPENDS_ON"| db
+```
+
+The deliberately cyclic graph from `build_cyclic_task_graph` — no valid
+topological order exists:
+
+```mermaid
+flowchart LR
+    task_a(("task_a<br/>:Task")) -->|"DEPENDS_ON"| task_b(("task_b<br/>:Task"))
+    task_b -->|"DEPENDS_ON"| task_c(("task_c<br/>:Task"))
+    task_c -->|"DEPENDS_ON"| task_a
     style task_a fill:#f66,stroke:#900
     style task_b fill:#f66,stroke:#900
     style task_c fill:#f66,stroke:#900
 ```
+
+*Legend: red nodes are on the cycle `find_cycle` reports
+(`['task_a', 'task_b', 'task_c', 'task_a']`); every arrow still reads
+"depends on", so the loop means none of the three tasks could ever be
+scheduled first.*
+
+The two algorithms this module runs over those graphs:
+
+```mermaid
+flowchart TD
+    START([START]) --> indeg["topological_order(): compute in_degree per node<br/>+ dependents map (edge reversed on purpose)"]
+    indeg --> ready["ready = deque(nodes with in_degree == 0)"]
+    ready --> pop{"ready non-empty?"}
+    pop -->|"yes"| append["pop node, append to order"]
+    append --> decrement["decrement in_degree of each dependent"]
+    decrement -->|"loop: dependent reaches in_degree == 0"| ready
+    pop -->|"no"| checklen{"len(order) == len(in_degree)?"}
+    checklen -->|"yes: DAG"| orderOK(["return topological order"])
+    checklen -->|"no: cycle exists"| raiseErr["raise GraphCycleError"]
+    raiseErr --> dfs["find_cycle(): DFS with WHITE/GRAY/BLACK coloring"]
+    dfs --> visit["visit(node): color = GRAY, push path"]
+    visit --> neighborCheck{"neighbor color?"}
+    neighborCheck -->|"GRAY (on current path)"| foundCycle["cycle = path[start:] + [neighbor]"]
+    neighborCheck -->|"WHITE (unvisited)"| visit
+    neighborCheck -->|"BLACK (fully explored)"| backtrack["pop path, color = BLACK"]
+    backtrack -->|"loop: next unvisited node"| visit
+    foundCycle --> END([END])
+    orderOK --> END
+```
+
+*Legend: the `checklen` diamond is Kahn's cycle test — if fewer nodes were
+ordered than exist, some remained stuck at a nonzero in-degree; the
+`neighborCheck` diamond is the DFS coloring rule that turns "revisited a
+GRAY node" into the reported cycle path.*
+
+**Flow notes**
+
+- `pop` (the `ready` deque) drives Kahn's algorithm: as long as any node has
+  zero unresolved dependencies, it's popped, appended to the order, and its
+  dependents' in-degrees are decremented — the `decrement` loop is what
+  refills `ready` for the next iteration.
+- `checklen` is how a cycle is *detected*: `topological_order` never raises
+  explicitly on a cycle — it simply runs out of zero-in-degree nodes early,
+  so `len(order) != len(in_degree)` is the signal, raised as
+  `GraphCycleError`.
+- `neighborCheck`'s three colors are DFS's cycle test: **GRAY** means the
+  neighbor is still on the current recursion path (finding a cycle),
+  **WHITE** means recurse into it, **BLACK** means it's already fully
+  explored and safe to skip.
+- `foundCycle` reconstructs the exact loop from the DFS `path` list, sliced
+  from where the gray neighbor first appeared — this is the actionable
+  detail Kahn's algorithm alone cannot provide.
 
 ## Runnable Example
 

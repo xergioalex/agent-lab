@@ -40,13 +40,65 @@ different kind of knowledge (semantic memory).
 ## Architecture
 
 ```mermaid
-graph LR
-    C[FixedClock] -->|tick| A[EpisodicMemory.append]
-    A --> E[(Episode list)]
-    E --> R1[replay ascending]
-    E --> R2[replay descending]
-    E --> R3[between start,end]
+flowchart TD
+    FixedClock["FixedClock.tick()"] -->|"tick"| append["EpisodicMemory.append(event, **metadata)"]
+    append --> episodes[("Episode list")]
+    episodes --> replay_asc["replay(descending=False)"]
+    episodes --> replay_desc["replay(descending=True)"]
+    episodes --> between["between(start_tick, end_tick)"]
 ```
+
+*Legend: every `append` advances the shared `FixedClock` by exactly one
+tick; `replay`/`between` never mutate the underlying list — they only
+sort or filter a copy of it.*
+
+**Flow notes**
+
+- `append(event, **metadata)` calls `clock.tick()` to obtain the next
+  monotonic tick, builds an `Episode` with an incrementing `episode_id`, and
+  appends it to the in-memory list.
+- `replay(descending=False)` (the default) returns every episode sorted by
+  `tick` ascending — chronological order; `descending=True` reverses that
+  order.
+- `between(start_tick, end_tick)` filters episodes whose `tick` falls
+  within `[start_tick, end_tick]` inclusive, preserving original append
+  order.
+
+```mermaid
+sequenceDiagram
+    participant M as main()
+    participant Clk as FixedClock
+    participant Mem as EpisodicMemory
+
+    M->>Mem: append("user logged in", user="alice")
+    Mem->>Clk: tick()
+    Clk-->>Mem: tick=1
+    Mem-->>M: Episode(id=1, tick=1)
+    M->>Mem: append("user opened dashboard", user="alice")
+    Mem->>Clk: tick()
+    Clk-->>Mem: tick=2
+    Mem-->>M: Episode(id=2, tick=2)
+    Note over M,Mem: two more appends follow (tick=3, tick=4)
+    M->>Mem: replay(descending=False)
+    Mem-->>M: episodes sorted by tick ascending
+    M->>Mem: replay(descending=True)
+    Mem-->>M: episodes sorted by tick descending
+    M->>Mem: between(2, 3)
+    Mem-->>M: episodes where 2 <= tick <= 3
+```
+
+*Legend: the `Mem->>Clk: tick()` round-trip happens once per `append` call
+— `replay` and `between` never touch the clock, they only read episodes
+already recorded.*
+
+**Flow notes**
+
+- Each `append` call round-trips through `FixedClock.tick()` before the
+  `Episode` is built, so tick order always matches append order.
+- `replay` returns a freshly sorted copy each call — ascending by default,
+  descending on request — without altering stored order.
+- `between(2, 3)` returns only the episodes recorded at tick 2 and tick 3,
+  regardless of how many total episodes exist.
 
 ## Runnable Example
 

@@ -43,13 +43,56 @@ an agent one tool call at a time.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> agent[agent: call_model]
-    agent -->|tool_calls present| tools[tools: ToolNode]
+flowchart TD
+    START(["START"]) --> agent["agent: call_model (bind_tools)"]
+    agent -->|"tool_calls present"| tools["tools: ToolNode(CODE_TOOLS)"]
     tools --> agent
-    agent -->|no tool_calls| finalize[finalize: summarize transcript]
-    finalize --> END((END))
+    agent -->|"no tool_calls"| finalize["finalize: summarize transcript"]
+    finalize --> END(["END"])
 ```
+
+Legend: the edge out of `agent` is the tool-loop continuation condition
+(`route_after_model`); `tools -> agent` is the retry loop that keeps
+executing the next code tool until the model stops requesting one.
+
+Flow notes:
+
+- `route_after_model` loops back to `tools` whenever the last `AIMessage`
+  carries `tool_calls`; it falls through to `finalize` once the model has
+  none left (or `max_tool_calls` is reached).
+- Each pass through the loop executes exactly one of `read_file`,
+  `run_tests`, or `apply_patch`, in the order the (offline) model selects
+  them — see the coding-loop state machine below for the read→test→patch
+  progression this produces.
+- `finalize` is the single convergence point that turns the `ToolMessage`
+  transcript into the printed `scratchpad`.
+
+The `agent`/`tools` cycle above walks through a fixed read→test→patch
+progression for this task; as a state machine:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Reading
+    Reading --> Testing: read_file done -> run_tests requested
+    Testing --> Patching: run_tests FAILED -> apply_patch requested
+    Patching --> Reporting: apply_patch done -> no more tool_calls
+    Reporting --> [*]
+```
+
+Legend: each state is one tool call executed by the `agent`/`tools` cycle;
+the transition label is the observation that triggers the next tool call.
+
+Flow notes:
+
+- `Reading` (`read_file`) always runs first because the task text mentions
+  the file before the tests.
+- `Testing` (`run_tests`) reports the failing assertion, which is the
+  observation that leads the model to request `apply_patch` next.
+- `Patching` (`apply_patch`) is the last tool call in this run; once it
+  returns, the model has no more tool calls and the loop exits to
+  `Reporting` (`finalize`).
+- In a real system, `Reporting` would loop back to `Testing` to confirm the
+  fix — see Challenge #2, which wires in exactly that re-run.
 
 Sequence of the three-step tool loop:
 

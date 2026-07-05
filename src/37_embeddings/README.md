@@ -65,18 +65,60 @@ to answer.
 
 ## Architecture
 
-```mermaid
-graph LR
-    Q[Query text] --> E1[get_embeddings]
-    D[Corpus documents] --> E2[get_embeddings]
-    E1 --> QV[Query vector]
-    E2 --> DV[Document vectors]
-    QV --> C[cosine_similarity]
-    DV --> C
-    C --> R[Ranked results]
+### Graph Structure
 
-    LD[Long document] --> CH[chunk_text at size N]
-    CH --> E2
+```mermaid
+flowchart TD
+    START([START]) --> Query["QUERY text"]
+    Query --> EmbedQuery["get_embeddings().embed_query(query)"]
+    Corpus[("CORPUS documents")] --> EmbedDocs["get_embeddings().embed_documents(...)"]
+    EmbedQuery --> QVector["query_vector"]
+    EmbedDocs --> DVectors["doc_vectors"]
+    QVector --> Cosine["cosine_similarity(query_vector, doc_vector)\nfor each document"]
+    DVectors --> Cosine
+    Cosine --> Ranked["sorted (doc_id, score) desc"]
+    Ranked --> END1(["END: rank_by_similarity(QUERY, CORPUS)"])
+
+    LongDoc[("LONG_DOCUMENT")] --> Chunk["chunk_text(text, chunk_size)"]
+    Chunk -->|"chunk_size=11"| Chunks11["5 chunks"]
+    Chunk -->|"chunk_size=45"| Chunks45["1 chunk"]
+    Chunks11 --> RankChunks["rank_by_similarity(QUERY, chunk_corpus)"]
+    Chunks45 --> RankChunks
+    RankChunks --> BestChunk["best-scoring chunk"]
+    BestChunk --> END2(["END: chunking comparison"])
+```
+
+*Legend: the two labeled edges out of `chunk_text` show the same document split at two granularities, feeding the same `rank_by_similarity` call to compare the resulting best match.*
+
+Flow notes:
+- `rank_by_similarity` embeds the query once and every document once, then scores each document by `cosine_similarity(query_vector, doc_vector)` and sorts descending — it is called twice in `main()`: once on `CORPUS`, once per chunking granularity.
+- `chunk_text` splits `LONG_DOCUMENT` on word boundaries into chunks of at most `chunk_size` words; `chunk_size=11` yields 5 focused chunks, `chunk_size=45` yields 1 chunk containing the whole document.
+- Smaller chunks isolate the on-topic sentence and score higher against `QUERY`; the single giant chunk dilutes that same signal with unrelated topics and scores lower — this is the module's core "chunking changes retrieval" takeaway.
+- `get_embeddings()` transparently swaps between real `OpenAIEmbeddings` and the offline `HashingEmbeddings`, so both flowchart paths behave identically with or without `OPENAI_API_KEY`.
+
+### Flow Over Time
+
+```mermaid
+sequenceDiagram
+    participant Main as main()
+    participant Emb as get_embeddings()
+    participant Sim as cosine_similarity()
+    Main->>Emb: embed_query(QUERY)
+    Emb-->>Main: query_vector
+    Main->>Emb: embed_documents(CORPUS.values())
+    Emb-->>Main: doc_vectors
+    loop for each document
+        Main->>Sim: cosine_similarity(query_vector, doc_vector)
+        Sim-->>Main: score
+    end
+    Main->>Main: sort documents by score desc
+    loop for chunk_size in (11, 45)
+        Main->>Main: chunk_text(LONG_DOCUMENT, chunk_size)
+        Main->>Emb: embed_documents(chunks)
+        Emb-->>Main: chunk_vectors
+        Main->>Sim: cosine_similarity per chunk
+        Sim-->>Main: best-scoring chunk
+    end
 ```
 
 ## Runnable Example

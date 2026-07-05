@@ -53,19 +53,75 @@ passenger (every message).
 ## Architecture
 
 ```mermaid
-graph LR
-    U[Untrusted input] --> V{validate_input}
-    V -->|reject| R1[REJECTED]
-    V -->|ok| D[detect_injection]
-    D -->|found| S[sanitize_prompt: redact]
-    D -->|none| S
-    S --> M[model.invoke]
-    M --> TC{tool call requested?}
-    TC -->|yes| AL[validate_tool_call: allow-list + type check]
-    TC -->|no| OUT[final answer]
-    AL -->|ok| EXEC[execute tool]
-    AL -->|reject| R2[REJECTED]
+flowchart TD
+    START(["START"]) --> V{"validate_input(text)"}
+    V -->|"empty or len > MAX_INPUT_LENGTH"| REJ1["REJECTED (validation)"]
+    V -->|"ok"| D["detect_injection(text)"]
+    D --> S["sanitize_prompt(text): redact matches"]
+    S --> MODEL["model.invoke(clean_text)"]
+    MODEL --> MARK{"found injection patterns?"}
+    MARK -->|"yes"| NEUT["NEUTRALIZED: reply"]
+    MARK -->|"no"| CLEAN["CLEAN: reply"]
+    NEUT --> END(["END"])
+    CLEAN --> END
+    REJ1 --> END
+
+    subgraph TOOLVAL["Independent path: validate_tool_call (not wired into process_message here)"]
+        TC{"tool_name in _ALLOWED_TOOLS?"}
+        TC -->|"no"| REJ2["REJECTED: not in allow-list"]
+        TC -->|"yes"| ARGS{"every arg is str/int/float/bool?"}
+        ARGS -->|"no"| REJ2
+        ARGS -->|"yes"| OK["tool call approved"]
+    end
 ```
+
+Legend: diamonds are the branch conditions from the code (`validate_input`,
+`detect_injection`'s result, `validate_tool_call`'s allow-list/type checks);
+the boxed `TOOLVAL` subgraph is a second, independent defense not invoked by
+`process_message` in this script but exercised directly in the Challenge
+section.
+
+Sequence of one message through validation, detection, and sanitization:
+
+```mermaid
+sequenceDiagram
+    participant U as Untrusted input
+    participant P as process_message
+    participant V as validate_input
+    participant D as detect_injection
+    participant S as sanitize_prompt
+    participant M as model
+
+    U->>P: raw_text
+    P->>V: validate_input(raw_text)
+    alt empty or too long
+        V-->>P: raise InputValidationError
+        P-->>U: "REJECTED (validation): ..."
+    else valid
+        V-->>P: validated text
+        P->>D: detect_injection(validated)
+        D-->>P: found = [...] (may be empty)
+        P->>S: sanitize_prompt(validated)
+        S-->>P: clean_text (redacted), found
+        P->>M: model.invoke(clean_text)
+        M-->>P: reply
+        P-->>U: "NEUTRALIZED: reply" if found else "CLEAN: reply"
+    end
+```
+
+Flow notes:
+
+- `validate_input` rejects empty or oversized input before any model call —
+  the `"empty or len > MAX_INPUT_LENGTH"` branch never reaches detection.
+- `detect_injection` always runs on valid input; `sanitize_prompt` redacts
+  every matched pattern (a no-op when `found` is empty), so the model never
+  sees the raw injection text.
+- The final marker (`NEUTRALIZED` vs `CLEAN`) records whether a redaction
+  happened, not whether the model call itself succeeded.
+- `validate_tool_call` is a separate allow-list + type check: it rejects any
+  `tool_name` not in `_ALLOWED_TOOLS`, or any argument whose type isn't a
+  primitive (`str`/`int`/`float`/`bool`) — both branches converge on the same
+  `REJECTED` outcome.
 
 ## Runnable Example
 

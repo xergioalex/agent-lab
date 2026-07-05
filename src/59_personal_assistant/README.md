@@ -42,18 +42,36 @@ into the notebook before the next visitor arrives.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> ingest[ingest: write to memory + classify]
-    ingest -->|tool| agent[agent: call_model]
-    ingest -->|recall| recall[recall: search memory]
-    ingest -->|chat| chat[chat: canned reply]
-    agent -->|tool_calls present| tools[tools: ToolNode]
+flowchart TD
+    START(["START"]) --> ingest["ingest: write to memory + classify(_classify)"]
+    ingest -->|"intent == 'tool'"| agent["agent: call_model (bind_tools)"]
+    ingest -->|"intent == 'recall'"| recall["recall: search memory"]
+    ingest -->|"intent == 'chat'"| chat["chat: canned reply"]
+    agent -->|"tool_calls present"| tools["tools: ToolNode(DEMO_TOOLS)"]
     tools --> agent
-    agent -->|no tool_calls| finalize[finalize: write reply to memory]
+    agent -->|"no tool_calls"| finalize["finalize: write reply to memory"]
     recall --> finalize
     chat --> finalize
-    finalize --> END((END))
+    finalize --> END(["END"])
 ```
+
+Legend: edge labels out of `ingest` are the classified intent
+(`route_intent`); the label out of `agent` is the tool-loop continuation
+condition (`route_after_model`); `tools -> agent` is the retry loop that
+keeps executing tool calls until the model stops requesting them.
+
+Flow notes:
+
+- `route_intent` sends the turn to `agent` when `_classify` matches a tool
+  keyword (`weather`/`task`/`slack`/`sum`), to `recall` when it matches a
+  memory keyword (`remember`/`earlier`/`before`/`recall`/`previous`), and to
+  `chat` otherwise.
+- `route_after_model` loops back to `tools` whenever the last `AIMessage`
+  carries `tool_calls`; once the model stops requesting tools, control falls
+  through to `finalize`.
+- All three branches (`agent`'s tool loop, `recall`, `chat`) converge on the
+  single `finalize` node, which is the only place that writes the
+  assistant's reply back into `context["memory"]`.
 
 Sequence for a tool-routed turn:
 

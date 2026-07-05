@@ -47,20 +47,68 @@ failing the roundabout tells you exactly what to fix next.
 
 ## Architecture
 
+`run_eval` loops over every case in `GOLDEN_SET`, scores it with all
+registered `SCORERS`, and averages them into one composite per case:
+
 ```mermaid
-graph LR
-    G[Golden set] --> R[run_eval]
-    SUT[System under test: classify_sentiment] --> R
-    R --> S1[exact_match_scorer]
-    R --> S2[polarity_detected_scorer]
-    S1 --> C[composite score]
-    S2 --> C
-    C --> P{composite >= threshold?}
-    P -->|yes| Pass[pass]
-    P -->|no| Fail[fail]
-    Pass --> A[Aggregate: pass rate]
-    Fail --> A
+flowchart TD
+    START([START]) --> golden["GOLDEN_SET (5 GoldenCase)"]
+    golden --> each{"for each case"}
+    each --> classify["classify_sentiment(case.input)"]
+    classify --> exact["exact_match_scorer(expected, actual)"]
+    classify --> polarity["polarity_detected_scorer(expected, actual)"]
+    exact --> composite["composite = mean(scores.values())"]
+    polarity --> composite
+    composite --> threshold{"composite >= PASS_THRESHOLD (0.75)?"}
+    threshold -->|"yes"| passed["EvalResult.passed = True"]
+    threshold -->|"no"| failed["EvalResult.passed = False"]
+    passed --> results["results.append(EvalResult)"]
+    failed --> results
+    results --> more{"more cases in GOLDEN_SET?"}
+    more -->|"yes"| each
+    more -->|"no"| scorecard["print_scorecard: pass_rate = passed / total"]
+    scorecard --> END([END])
 ```
+
+*Legend: `run_eval` is a plain Python loop, not a LangGraph graph — the
+diagram uses the same flowchart conventions to make the per-case iteration
+and its exit condition explicit.*
+
+Trace of the one golden case the naive classifier gets wrong (sarcasm):
+
+```mermaid
+sequenceDiagram
+    participant R as run_eval
+    participant SUT as classify_sentiment
+    participant S1 as exact_match_scorer
+    participant S2 as polarity_detected_scorer
+
+    R->>SUT: classify_sentiment("Great, another bug crashed my session. Thanks a lot.")
+    SUT-->>R: actual="positive" (lexicon matches "great", "thanks")
+    Note over R: expected="negative" (sarcasm — a human reads this as a complaint)
+    R->>S1: exact_match_scorer("negative", "positive")
+    S1-->>R: 0.0 (no match)
+    R->>S2: polarity_detected_scorer("negative", "positive")
+    S2-->>R: 1.0 (non-neutral expected, non-neutral detected)
+    R->>R: composite = (0.0 + 1.0) / 2 = 0.50
+    R->>R: 0.50 >= PASS_THRESHOLD (0.75)? no -> passed = False
+    R-->>R: EvalResult(case, actual="positive", scores) -> fail
+```
+
+**Flow notes:**
+- The `for each case` loop runs `classify_sentiment` (the system under test)
+  once per `GoldenCase`, then every scorer in `SCORERS` against that one
+  prediction.
+- `composite` is the unweighted mean of all scorer outputs for that case;
+  `passed` is `composite >= PASS_THRESHOLD` (`0.75`).
+- The sarcasm case shows exactly why a single lenient scorer can hide a
+  regression: `polarity_detected_scorer` alone would score `1.0` (some
+  charge was detected) even though the exact label is backwards; averaging
+  it with the strict `exact_match_scorer` (`0.0`) surfaces the failure as
+  `0.50 < 0.75`.
+- `print_scorecard` aggregates every `EvalResult.passed` into one
+  `pass_rate` after the loop exits — the headline number a CI gate would
+  check.
 
 ## Runnable Example
 

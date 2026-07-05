@@ -56,18 +56,61 @@ described, now actually built.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> plan[plan: which subsystems are needed?]
-    plan --> mem[memory_specialist]
-    mem --> graphS[graph_specialist]
-    graphS --> rag[rag_specialist]
-    rag -->|tools needed| agent[agent: call_model]
-    rag -->|tools not needed| agg[aggregate]
-    agent -->|tool_calls present| tools[tools: ToolNode]
+flowchart TD
+    START(["START"]) --> plan["plan: _needed_subsystems(text) -> needed"]
+
+    plan --> mem{"'memory' in needed?"}
+    mem -->|"yes"| memW["memory_specialist: read memory_log[-1]"]
+    mem -->|"no"| memN["memory_specialist: no-op"]
+    memW --> graphS{"'graph' in needed?"}
+    memN --> graphS
+
+    graphS -->|"yes"| graphW["graph_specialist: query GRAPH_STORE.neighbors('engineering', 'LED_BY')"]
+    graphS -->|"no"| graphN["graph_specialist: no-op"]
+    graphW --> rag{"'rag' in needed?"}
+    graphN --> rag
+
+    rag -->|"yes"| ragW["rag_specialist: VECTOR_STORE.similarity_search(query, k=1)"]
+    rag -->|"no"| ragN["rag_specialist: no-op"]
+    ragW --> routeT{"'tools' in needed? (route_to_tools)"}
+    ragN --> routeT
+
+    routeT -->|"yes"| agent["agent: call_model (bind_tools)"]
+    routeT -->|"no"| agg["aggregate: merge findings + log summary"]
+    agent -->|"tool_calls present"| tools["tools: ToolNode(_ACTION_TOOLS)"]
     tools --> agent
-    agent -->|no tool_calls| agg
-    agg --> END((END))
+    agent -->|"no tool_calls"| agg
+    agg --> END(["END"])
 ```
+
+Legend: the first three diamonds are each specialist's internal
+`if name not in needed: return {}` guard (cooperation — every specialist
+always runs, opts in to writing a finding); `routeT` is the one real
+LangGraph conditional edge (`route_to_tools`) that skips the agent/tool
+loop entirely when no action is needed; `agent`'s outgoing edge
+(`route_after_model`) is the tool-calling retry loop.
+
+Flow notes:
+
+- `plan` is the single router: `_needed_subsystems` matches request text
+  against `memory`/`graph`/`rag`/`tools` keyword tables once, and every
+  downstream node reads this same `needed` list — this is the "route"
+  step that decides which of memory, RAG, graph, and tools fire.
+- `memory_specialist`, `graph_specialist`, and `rag_specialist` always
+  execute in sequence but only **read** from their backing store
+  (`memory_log`, `InMemoryGraphStore`, `InMemoryVectorStore`) and write a
+  `findings` entry when their name is in `needed`; otherwise they no-op.
+- `route_to_tools` is the only branch that changes which node runs next:
+  it enters the `agent`/`tools` loop only when `"tools" in needed`,
+  otherwise it skips straight to `aggregate` — this is what keeps 90% of
+  requests from paying for an unnecessary model call.
+- Inside the loop, `route_after_model` sends control back to `tools`
+  while the model keeps requesting `create_task`/`send_slack`, and falls
+  through to `aggregate` once it stops.
+- `aggregate` is the observability seam: it merges every specialist
+  finding plus any tool observations into one answer, logs a structured
+  `subsystems=[...] tool_calls=N` summary, and appends the answer to the
+  persistent `memory_log` before the run ends.
 
 Sequence of the full end-to-end run (request 1, all subsystems fire):
 

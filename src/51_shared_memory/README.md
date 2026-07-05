@@ -56,13 +56,18 @@ messages anyone directly — they just walk up to the board.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> researcher[researcher]
-    researcher --> planner[planner]
-    planner --> critic[critic]
-    critic --> summarize[summarize]
-    summarize --> END((END))
+flowchart LR
+    START([START]) --> researcher["researcher\n(post board['researcher'])"]
+    researcher --> planner["planner\n(read board['researcher'], post board['planner'])"]
+    planner --> critic["critic\n(read board['planner'], post board['critic'])"]
+    critic --> summarize["summarize\n(read full board)"]
+    summarize --> END([END])
 ```
+
+*Legend: this chain has no conditional edges — the linear order
+`researcher -> planner -> critic -> summarize` is exactly what guarantees
+read-after-write on the blackboard (each node's post is fully merged before
+the next node runs).*
 
 Read-after-write sequence:
 
@@ -84,6 +89,22 @@ sequenceDiagram
     S->>S: build summary from every namespaced entry
     S-->>U: final state
 ```
+
+**Flow notes:**
+- Every agent node is built by `_agent_node(name, produce_fact)`: it reads
+  `context.get("blackboard", {})`, computes `produce_fact(board)`, then
+  writes `{**board, name: [*board.get(name, []), fact]}` — spreading the
+  board first (module 48's context-spread convention, one level deeper) is
+  what keeps each agent's namespace intact.
+- `planner`'s `produce_fact` reads `board["researcher"][-1]`; `critic`'s reads
+  `board["planner"][-1]` — each agent only reads the one prior post it
+  depends on, not the whole board.
+- Read-after-write ordering is a **graph-level** guarantee here: because the
+  edges are strictly sequential (no `Send` fan-out), each node's write is
+  fully merged into state before the next node's read — reordering the edges
+  (see Challenge 3) breaks this guarantee immediately with a `KeyError`.
+- `summarize` is the only node that reads the full board; it never posts to
+  it.
 
 ## Runnable Example
 

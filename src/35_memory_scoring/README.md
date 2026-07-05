@@ -43,16 +43,46 @@ breakdown is like showing each judge's individual scorecard.
 
 ## Architecture
 
+### Graph Structure
+
 ```mermaid
-graph LR
-    Q[query] --> REL[relevance_score]
-    C[Candidate: text, tick, importance] --> REL
-    C --> REC[recency_score vs now_tick]
-    C --> IMP[importance]
-    REL --> T[total_score: weighted sum]
-    REC --> T
-    IMP --> T
-    T --> RANK[sorted candidates + breakdown]
+flowchart TD
+    START([START]) --> Candidate["Candidate: text, tick, importance"]
+    Query["query"] --> Relevance["relevance_score(query, candidate)"]
+    Candidate --> Relevance
+    Candidate --> Recency["recency_score(candidate, now_tick)"]
+    Recency -->|"age = now_tick - tick >= half_life"| RecZero["recency = 0.0"]
+    Recency -->|"age < half_life"| RecLinear["recency = 1 - age / half_life"]
+    Candidate --> Importance["candidate.importance (assigned at write time)"]
+    Relevance --> Total["total_score: weighted sum"]
+    RecZero --> Total
+    RecLinear --> Total
+    Importance --> Total
+    Total --> Sort["sort candidates by total desc"]
+    Sort --> END([END])
+```
+
+*Legend: the two labeled edges out of `recency_score` are its clamp behavior — linear decay above the half-life floor, hard zero once a memory is old enough.*
+
+Flow notes:
+- `relevance_score` is the fraction of query tokens present in the candidate text (0 if the query has no tokens, to avoid a divide-by-zero).
+- `recency_score` computes `age = max(now_tick - tick, 0)` (clamped so a "future" tick can't go negative) then linearly decays to `0.0` once `age >= RECENCY_HALF_LIFE`.
+- `importance` is not derived — it's the candidate's own field, set once at write time and never recomputed here.
+- `total_score` combines all three with fixed weights (`RELEVANCE_WEIGHT=0.5`, `RECENCY_WEIGHT=0.3`, `IMPORTANCE_WEIGHT=0.2`) and the full breakdown is returned alongside the total for explainability.
+
+### Flow Over Time
+
+```mermaid
+sequenceDiagram
+    participant Main as main()
+    participant Score as total_score()
+    loop for each Candidate in CANDIDATES
+        Main->>Score: total_score(query, candidate, NOW_TICK)
+        Score->>Score: relevance_score(query, candidate)
+        Score->>Score: recency_score(candidate, now_tick)
+        Score-->>Main: {relevance, recency, importance, total}
+    end
+    Main->>Main: sort scored candidates by total desc
 ```
 
 ## Runnable Example

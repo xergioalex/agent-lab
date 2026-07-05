@@ -43,22 +43,43 @@ delivery — not five separate reports.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> supervisor[supervisor]
-    supervisor -->|weather| weather_worker[weather_worker]
-    supervisor -->|research| research_worker[research_worker]
-    supervisor -->|task| task_worker[task_worker]
-    supervisor -->|general| general_worker[general_worker]
-    weather_worker -->|tasks remain| supervisor
-    research_worker -->|tasks remain| supervisor
-    task_worker -->|tasks remain| supervisor
-    general_worker -->|tasks remain| supervisor
-    weather_worker -->|done| aggregate[aggregate]
-    research_worker -->|done| aggregate
-    task_worker -->|done| aggregate
-    general_worker -->|done| aggregate
-    aggregate --> END((END))
+flowchart TD
+    START([START]) --> supervisor["supervisor(state)"]
+    supervisor -->|"keywords: weather, forecast"| weather_worker["weather_worker"]
+    supervisor -->|"keywords: standup, vacation, deploy, oncall, knowledge"| research_worker["research_worker"]
+    supervisor -->|"keywords: task, todo, remind"| task_worker["task_worker"]
+    supervisor -->|"no keyword match (default)"| general_worker["general_worker"]
+    weather_worker -->|"index < len(tasks)"| supervisor
+    research_worker -->|"index < len(tasks)"| supervisor
+    task_worker -->|"index < len(tasks)"| supervisor
+    general_worker -->|"index < len(tasks)"| supervisor
+    weather_worker -->|"index == len(tasks)"| aggregate["aggregate(state)"]
+    research_worker -->|"index == len(tasks)"| aggregate
+    task_worker -->|"index == len(tasks)"| aggregate
+    general_worker -->|"index == len(tasks)"| aggregate
+    aggregate --> END([END])
 ```
+
+*Legend: edge labels out of `supervisor` are `route_to_worker`'s keyword
+match against the current task; edge labels out of each worker are
+`route_after_worker`'s check of whether the task queue is exhausted.*
+
+**Flow notes**
+
+- `supervisor` reads `context["tasks"][index]` and keyword-matches it
+  against `_WORKER_KEYWORDS`, defaulting to `general_worker` when nothing
+  matches.
+- `route_to_worker` performs no matching itself — it only reads
+  `context["current_worker"]` back and returns it as the conditional-edge
+  key.
+- Each worker node runs exactly one tool call (or, for `general_worker`,
+  just acknowledges), appends its output to `context["worker_results"]`,
+  and increments `context["index"]`.
+- `route_after_worker` sends control back to `supervisor` while
+  `index < len(tasks)`; once every task has been dispatched, it routes to
+  `aggregate` instead.
+- `aggregate` joins every `worker_results` entry into one final
+  `AIMessage`.
 
 ```mermaid
 sequenceDiagram

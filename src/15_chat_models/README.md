@@ -48,15 +48,38 @@ entire email thread from the top before writing your next reply.
 
 ## Architecture
 
+This is a growing message transcript, not a compiled LangGraph — there is no
+`StateGraph` in this module, so the diagram shows the timeline of messages
+instead of nodes/edges:
+
 ```mermaid
-graph LR
-    S[SystemMessage] --> H1[HumanMessage]
-    H1 --> M[get_chat_model]
-    M --> A1[AIMessage]
-    A1 --> H2[HumanMessage: follow-up]
-    H2 --> M2[get_chat_model]
-    M2 --> A2[AIMessage]
+flowchart TD
+    S["SystemMessage(persona)"] --> H1["HumanMessage(turn 1)"]
+    H1 --> M1["model.invoke(history)"]
+    M1 --> A1["AIMessage(reply 1)"]
+    A1 --> H2["HumanMessage(turn 2, follow-up)"]
+    H2 --> M2["model.invoke(history)"]
+    M2 --> A2["AIMessage(reply 2)"]
 ```
+
+Legend: each arrow is "appended to the transcript, then re-sent whole" — the
+model itself holds no memory between arrows; only the caller-held `history`
+list grows.
+
+Flow notes:
+
+- `build_first_turn` seeds the transcript with `SystemMessage` (persona) +
+  the first `HumanMessage`.
+- `model.invoke(history)` is called with the **entire** list each time and
+  returns exactly one new `AIMessage`.
+- `append_reply` grows `history` with that reply before the next turn starts
+  — the same append shape LangGraph's `add_messages` reducer maintains
+  inside a graph (module 03).
+- Turn 2 replays turn 1 in full plus the new follow-up `HumanMessage`;
+  nothing is remembered by the model across `invoke` calls.
+- A separate `build_tool_observation_turn` (not pictured above) shows the
+  `ToolMessage` shape used once tool calls are involved — see the tool loop
+  in module 17.
 
 Sequence of a single chat turn, including the offline/online fork inside
 `get_chat_model`:

@@ -50,12 +50,50 @@ Only after a decision comes back does the expense system
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> propose[propose_action]
-    propose -->|interrupt: pause here| propose
-    propose --> apply[apply_decision]
-    apply --> END((END))
+flowchart TD
+    START([START]) --> propose_action["propose_action(state)"]
+    propose_action -.->|"interrupt(payload) pauses the run"| Human{{"Human decision: approve / edit / reject"}}
+    Human -.->|"Command(resume=decision)"| propose_action
+    propose_action --> apply_decision["apply_decision(state)"]
+    apply_decision --> END([END])
 ```
+
+*Legend: dashed arrows are the `interrupt`/`Command(resume=...)` control-flow
+(not compiled graph edges — LangGraph only ever runs the solid path
+`propose_action -> apply_decision -> END`); solid arrows are the graph's
+real, always-taken edges.*
+
+**Flow notes**
+
+- `propose_action` builds the proposed action string, then calls
+  `interrupt(payload)`, which pauses the run and surfaces `payload` to the
+  caller via `result["__interrupt__"]`.
+- The human (or, in this module, a scripted decision) inspects the proposal
+  and calls `app.invoke(Command(resume=decision), config=...)` with the
+  *same* `thread_id`, resuming exactly at the paused `interrupt()` call site.
+- `apply_decision` reads `context["decision"]["verdict"]`: `"approve"` runs
+  the action as proposed, `"edit"` runs `decision["edited_action"]` instead,
+  anything else (e.g. `"reject"`) takes no action.
+- `MemorySaver` checkpoints the run so the pause survives across separate
+  `invoke()` calls — even, in principle, a different process — as long as
+  `thread_id` matches.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Proposed: propose_action calls interrupt(payload)
+    Proposed --> Approved: resume verdict == "approve"
+    Proposed --> Edited: resume verdict == "edit"
+    Proposed --> Rejected: resume verdict == other (e.g. "reject")
+    Approved --> Executed: apply_decision runs the proposed action
+    Edited --> Executed: apply_decision runs the edited action
+    Rejected --> Done: no action taken
+    Executed --> Done
+    Done --> [*]
+```
+
+*Legend: this is the same pause point as the flowchart, viewed as the three
+possible resume outcomes — exactly one of `Approved` / `Edited` / `Rejected`
+is reached per run.*
 
 ```mermaid
 sequenceDiagram

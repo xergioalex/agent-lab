@@ -55,13 +55,43 @@ right, but you can't verify it did.
 
 ## Architecture
 
+### Graph Structure
+
 ```mermaid
-graph LR
-    Q[Question] --> R[retrieve: InMemoryVectorStore.similarity_search]
-    KB[(Knowledge base)] -.ingested via add_texts.-> R
-    R --> A[augment: build prompt with cited context]
-    A --> G[generate: get_chat_model.invoke]
-    G --> Ans[Grounded answer with citation]
+flowchart TD
+    START([START]) --> Ingest["ingest(store, KNOWLEDGE_BASE): store.add_texts"]
+    Ingest --> KB[("InMemoryVectorStore")]
+    Question["QUESTION"] --> Retrieve["retrieve(store, question, TOP_K):\nstore.similarity_search"]
+    KB --> Retrieve
+    Retrieve --> Results["top-k SearchResult list"]
+    Results --> Augment["augment(question, results):\nbuild prompt with [doc.id] citations"]
+    Augment --> Prompt["augmented prompt string"]
+    Prompt --> Generate["generate(prompt, grounding_id):\nget_chat_model().invoke"]
+    Generate --> Answer["grounded answer with citation"]
+    Answer --> END([END])
+```
+
+*Legend: this is a straight-line pipeline (no branches) — `ingest` runs once before the loop the reader cares about: `retrieve -> augment -> generate`, each step feeding the next unconditionally.*
+
+Flow notes:
+- `ingest` embeds and upserts every `KNOWLEDGE_BASE` document into the store once, before any question is asked.
+- `retrieve` fetches the top-`TOP_K` documents by similarity to `QUESTION` — retrieval quality here directly bounds what `augment`/`generate` can ground their answer in.
+- `augment` builds a single prompt string that stuffs the retrieved context (each line prefixed with its `[doc.id]`) ahead of the question, and instructs the model to answer **only** from that context.
+- `generate` calls `get_chat_model().invoke(prompt)`; the offline fake returns a canned, citation-bearing answer, while a real `ChatOpenAI` would read the same augmented prompt and produce a grounded answer citing the same context.
+
+### Flow Over Time
+
+```mermaid
+sequenceDiagram
+    participant U as main()
+    participant VS as InMemoryVectorStore
+    participant LLM as get_chat_model()
+    U->>VS: add_texts(KNOWLEDGE_BASE texts, ids)
+    U->>VS: similarity_search(QUESTION, k=TOP_K)
+    VS-->>U: top-k SearchResult(document, score)
+    U->>U: augment(): build prompt with [doc.id] citations
+    U->>LLM: invoke(prompt)
+    LLM-->>U: canned grounded answer with citation
 ```
 
 ## Runnable Example

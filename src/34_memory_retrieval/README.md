@@ -42,12 +42,58 @@ budget), starting with whatever matters most, until the page is full.
 
 ## Architecture
 
+### Graph Structure
+
 ```mermaid
-graph LR
-    Q[query] --> R[rank across all memory kinds]
-    P[(memory pool: conversation, episodic, semantic, procedural)] --> R
-    R --> A[assemble: budget-bounded]
-    A --> CTX[context block for prompt]
+flowchart TD
+    START([START]) --> Query["query text"]
+    Pool[("MEMORY_POOL: conversation, episodic, semantic, procedural")] --> Rank
+    Query --> Rank["rank(query, pool)"]
+    Rank --> Relevance["relevance(query, item)\nfor each item in pool"]
+    Relevance --> Sorted["sorted by score desc (stable ties)"]
+    Sorted --> Assemble["assemble(ranked, budget_chars)"]
+    Assemble -->|"score <= 0"| Skip["skip item"]
+    Assemble -->|"used + len(line) > budget_chars"| Break["break: stop assembling"]
+    Assemble -->|"else: line fits budget"| Append["append line, used += len(line)"]
+    Append --> Assemble
+    Skip --> Assemble
+    Break --> Context["context block"]
+    Context --> END([END])
+```
+
+*Legend: the three labeled edges out of `assemble` are the only three outcomes per ranked item — skip, stop, or keep — evaluated once per item in ranked order.*
+
+Flow notes:
+- `rank` scores every item across **all four memory kinds on one shared scale** (word overlap with `query`) and sorts descending, ties broken stably by original pool order.
+- `assemble` walks the sorted list greedily: a `score <= 0` item is skipped outright (no relevance at all).
+- If adding the next line would exceed `budget_chars`, `assemble` **breaks immediately** — it does not skip ahead to try a shorter later item, so budget exhaustion ends assembly for good.
+- Otherwise the line is appended and `used` grows, and the loop continues to the next ranked item.
+
+### Flow Over Time
+
+```mermaid
+sequenceDiagram
+    participant Main as main()
+    participant Rank as rank()
+    participant Rel as relevance()
+    participant Asm as assemble()
+    Main->>Rank: rank(query, MEMORY_POOL)
+    loop for each item in pool
+        Rank->>Rel: relevance(query, item)
+        Rel-->>Rank: token-overlap score
+    end
+    Rank-->>Main: sorted (item, score) pairs
+    Main->>Asm: assemble(ranked, budget_chars=160)
+    loop for each ranked item
+        alt score <= 0
+            Asm->>Asm: skip item
+        else used + len(line) > budget_chars
+            Asm->>Asm: break (budget exhausted)
+        else line fits
+            Asm->>Asm: append line, used += len(line)
+        end
+    end
+    Asm-->>Main: assembled context block
 ```
 
 ## Runnable Example

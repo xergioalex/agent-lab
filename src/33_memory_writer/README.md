@@ -42,14 +42,56 @@ is exactly the classify-and-route step this module demonstrates.
 
 ## Architecture
 
+### Graph Structure
+
 ```mermaid
-graph LR
-    I[Raw interaction] -->|extract| C[Candidates]
-    C -->|classify| K{Memory kind?}
-    K -->|conversation| B1[conversation bucket]
-    K -->|episodic| B2[episodic bucket]
-    K -->|semantic| B3[semantic bucket]
-    K -->|procedural| B4[procedural bucket]
+flowchart TD
+    START([START]) --> Extract["extract(raw_interaction)"]
+    Extract --> Candidates["candidates: list[str]"]
+    Candidates --> Classify["classify(candidate)"]
+    Classify -->|"'procedure:' in lowered"| BProc["procedural bucket"]
+    Classify -->|"'fact:' in lowered"| BSem["semantic bucket"]
+    Classify -->|"'tick=' in lowered"| BEpi["episodic bucket"]
+    Classify -->|"none of the above (default)"| BConv["conversation bucket"]
+    Classify -.->|"next candidate"| Classify
+    BProc --> Store[("store(): per-kind buckets")]
+    BSem --> Store
+    BEpi --> Store
+    BConv --> Store
+    Store --> END([END])
+```
+
+*Legend: the dashed self-loop on `classify` is the `for candidate in candidates` iteration; the four labeled edges are `classify`'s only possible return values, checked in that exact order.*
+
+Flow notes:
+- `extract` splits the raw interaction tuple into one candidate string per non-blank line — one idea per candidate.
+- `classify` checks keyword rules **in priority order**: `"procedure:"` wins first, then `"fact:"`, then `"tick="`; anything matching none of those falls through to the `conversation` default.
+- `store` calls `classify` once per candidate and appends it to the matching bucket, logging every routing decision.
+- All four buckets always exist (even empty) so `main()` can print a count for every memory kind, not just the ones that got a match.
+
+### Flow Over Time
+
+```mermaid
+sequenceDiagram
+    participant Main as main()
+    participant Ext as extract()
+    participant Cls as classify()
+    participant Buckets as store() buckets
+    Main->>Ext: extract(RAW_INTERACTION)
+    Ext-->>Main: candidates
+    loop for each candidate
+        Main->>Cls: classify(candidate)
+        alt "procedure:" in lowered
+            Cls-->>Main: "procedural"
+        else "fact:" in lowered
+            Cls-->>Main: "semantic"
+        else "tick=" in lowered
+            Cls-->>Main: "episodic"
+        else no keyword matched
+            Cls-->>Main: "conversation"
+        end
+        Main->>Buckets: append candidate to matching bucket
+    end
 ```
 
 ## Runnable Example

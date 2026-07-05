@@ -50,19 +50,68 @@ most worth checking first.
 
 ## Architecture
 
+The service topology from `build_service_graph` (every arrow is a
+`DEPENDS_ON` edge, drawn bottom-to-top so `database` — the true root
+cause — sits at the base):
+
 ```mermaid
-graph BT
-    database((database)) --> auth_service((auth_service))
-    database --> cache((cache))
-    auth_service --> api_gateway((api_gateway))
-    cache --> api_gateway
-    api_gateway --> web_app((web_app))
+flowchart BT
+    database(("database<br/>:Service")) -->|"DEPENDS_ON"| auth_service(("auth_service<br/>:Service"))
+    database -->|"DEPENDS_ON"| cache(("cache<br/>:Service"))
+    auth_service -->|"DEPENDS_ON"| api_gateway(("api_gateway<br/>:Service"))
+    cache -->|"DEPENDS_ON"| api_gateway
+    api_gateway -->|"DEPENDS_ON"| web_app(("web_app<br/>:Service"))
     style database fill:#f66,stroke:#900
 ```
 
-*(Arrows drawn bottom-to-top: `database` is upstream of everything above
-it. If `web_app` — top — fails, upstream traversal walks down toward
-`database`; blast radius is measured walking back up from any candidate.)*
+*Legend: `database` (red) is the most-likely root cause — it has the
+largest blast radius. Arrows point "depends on", so `web_app` (top) failing
+means upstream traversal walks *down* toward `database`; blast radius is
+measured walking *back up* from any candidate toward `web_app`.*
+
+The two traversal algorithms this module runs over that graph:
+
+```mermaid
+flowchart TD
+    START([START]) --> upcand["upstream_candidates(store, failing_node='web_app')"]
+    upcand --> frontier1["frontier = [failing_node]; visited = {}"]
+    frontier1 --> pop1{"frontier non-empty?"}
+    pop1 -->|"yes"| walk["for neighbor in store.neighbors(current, DEPENDS_ON)"]
+    walk --> seen{"neighbor.id in visited?"}
+    seen -->|"no"| addvisited["visited.add(neighbor.id); push to frontier"]
+    seen -->|"yes"| walk
+    addvisited -->|"loop"| pop1
+    pop1 -->|"no"| candidatesDone(["candidates = visited set"])
+    candidatesDone -->|"loop: for node_id in candidates"| blast["blast_radius(store, node_id)"]
+    blast --> reverse["reverse walk: rel.target == current, collect rel.source"]
+    reverse --> countdone(["len(visited) = downstream impact count"])
+    countdone -->|"loop: next candidate"| candidatesDone
+    countdone --> rank["rank_root_causes(): sort by (-blast_radius, node_id)"]
+    rank --> END([END])
+```
+
+*Legend: `upstream_candidates` walks **forward** along `DEPENDS_ON` using
+`store.neighbors` directly (what the failing node needs); `blast_radius`
+walks **backward** by scanning `store.relationships` for edges that target
+the candidate (what needs the candidate) — swapping these two directions
+silently produces a wrong ranking.*
+
+**Flow notes**
+
+- `seen` (the `visited` check) is what keeps `upstream_candidates`
+  terminating even on a graph with a cycle — a node already visited is
+  never re-pushed onto the frontier.
+- `walk` uses `store.neighbors(current, DEPENDS_ON)`, which only exposes
+  **outgoing** edges — exactly the forward, "what do I need" direction; no
+  reversal is needed for upstream traversal.
+- `reverse` is the mirror image: since `InMemoryGraphStore` has no built-in
+  reverse-neighbor lookup, `blast_radius` scans every relationship and
+  keeps the ones whose `target` matches the current node, collecting
+  `source` instead — the manual reversal `upstream_candidates` doesn't need.
+- `rank_root_causes` sorts candidates by `(-blast_radius, node_id)` — most
+  downstream impact first, ties broken deterministically by id — which is
+  why `database` (impacts 4 services) outranks `auth_service`/`cache`
+  (impact 2 each) in the runnable example below.
 
 ## Runnable Example
 

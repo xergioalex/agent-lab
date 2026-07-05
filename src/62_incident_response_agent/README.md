@@ -41,15 +41,58 @@ cause. Once found, they open a ticket and post in the incident channel.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> detect[detect_incident]
-    detect --> localize[localize_root_cause: BFS over DEPENDS_ON]
-    localize --> agent[agent: call_model]
-    agent -->|tool_calls present| tools[tools: ToolNode]
+flowchart TD
+    START(["START"]) --> detect["detect_incident"]
+    detect --> localize["localize_root_cause: BFS over DEPENDS_ON"]
+    localize --> agent["agent: call_model (bind_tools)"]
+    agent -->|"tool_calls present"| tools["tools: ToolNode(_REMEDIATION_TOOLS)"]
     tools --> agent
-    agent -->|no tool_calls| report[report]
-    report --> END((END))
+    agent -->|"no tool_calls"| report["report"]
+    report --> END(["END"])
 ```
+
+Legend: the edge out of `agent` is the remediation tool-loop condition
+(`route_after_model`); `tools -> agent` is the retry loop that keeps
+dispatching remediation tools until the model stops requesting them.
+
+Flow notes:
+
+- `localize_root_cause` runs a single breadth-first pass before any tool is
+  called — diagnosis and remediation are separate nodes, never interleaved.
+- `route_after_model` loops back to `tools` while the model keeps
+  requesting `create_task`/`send_slack`, and falls through to `report` once
+  it stops (or `max_tool_calls` is reached).
+- `report` is the single convergence node that summarizes the alert, the
+  BFS trace, the root causes, and the remediation transcript.
+
+The BFS inside `localize_root_cause` walks each node through the same three
+states; as a state machine per visited node:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Alerted
+    Alerted --> Visiting: dequeue neighbor via DEPENDS_ON
+    Visiting --> RootCause: health == "unhealthy"
+    Visiting --> Queued: health == "healthy"
+    Queued --> Visiting: dequeue next neighbor
+    RootCause --> [*]: do not expand further
+```
+
+Legend: `Visiting` is evaluated once per unvisited neighbor; the transition
+out of it is the node's health, read from the fixed `_HEALTH` snapshot.
+
+Flow notes:
+
+- `Alerted` is the starting service (`checkout`); its own health is never
+  evaluated as a root cause — only its dependencies are.
+- `Visiting -> RootCause` fires when a neighbor's health is `"unhealthy"`;
+  that node is recorded in `root_causes` and **not** expanded further (its
+  own dependencies are irrelevant to this incident).
+- `Visiting -> Queued -> Visiting` is the healthy path: a healthy neighbor
+  is appended to the BFS queue so its own dependencies get checked next.
+- The `visited` set (not shown as a state) prevents a node reached by two
+  paths — e.g. `database` via both `payments` and `inventory` — from being
+  visited or reported twice.
 
 Sequence of the RCA + remediation flow:
 

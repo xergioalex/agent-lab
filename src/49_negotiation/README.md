@@ -48,13 +48,30 @@ cap) — a realistic model of most single-issue haggling.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> propose[propose]
-    propose --> critique[critique]
-    critique -->|pending| propose
-    critique -->|accepted| converge[converge]
-    critique -->|capped| converge
-    converge --> END((END))
+flowchart LR
+    START([START]) --> propose["propose(state)"]
+    propose --> critique["critique(state)"]
+    critique -->|"route_after_critique: status == 'pending'"| propose
+    critique -->|"route_after_critique: status == 'accepted'"| converge["converge(state)"]
+    critique -->|"route_after_critique: status == 'capped'"| converge
+    converge --> END([END])
+```
+
+*Legend: the edge label on every arrow out of `critique` is the literal
+string `route_after_critique` returns; the loop back to `propose` is the
+concession round, bounded by `max_rounds`.*
+
+The same loop as a state machine — negotiation has exactly three phases and
+two distinct ways to reach the terminal state:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Proposing
+    Proposing --> Critiquing: propose() emits offer (opening or offer - step)
+    Critiquing --> Proposing: status == "pending" (outside range, round < max_rounds)
+    Critiquing --> Converged: status == "accepted" (target_min <= offer <= target_max)
+    Critiquing --> Converged: status == "capped" (round >= max_rounds, still outside range)
+    Converged --> [*]
 ```
 
 Sequence for a settling negotiation (3 rounds):
@@ -73,6 +90,19 @@ sequenceDiagram
     P->>C: round=3, offer=110
     C-->>U: status=accepted (110 <= target_max) -> converge
 ```
+
+**Flow notes:**
+- `propose` computes the opening offer on round 1 (`context["opening_offer"]`)
+  and a concession (`offer - step`) on every later round.
+- `critique` sets `status = "accepted"` the moment the offer lands in
+  `[target_min, target_max]`.
+- `critique` sets `status = "capped"` when the offer is still outside range
+  but `round >= max_rounds` — a circuit breaker, not a failure.
+- `critique` sets `status = "pending"` in every other case, which is what
+  sends control back to `propose` for another concession.
+- `route_after_critique` is a pure router: it only reads `context["status"]`
+  and returns `"converge"` for `"accepted"`/`"capped"`, `"propose"` otherwise
+  — it never mutates state.
 
 ## Runnable Example
 

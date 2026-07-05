@@ -42,16 +42,32 @@ draft — a bounded, mechanical peer-review pass.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> plan[plan: fixed sub-questions]
-    plan --> retrieve[retrieve: top-k per sub-question]
-    retrieve --> synthesize[synthesize: draft answer]
-    synthesize --> reflect[reflect: coverage critique]
-    reflect -->|insufficient coverage| revise[revise: increase k]
-    reflect -->|coverage sufficient| finalize[finalize]
+flowchart TD
+    START(["START"]) --> plan["plan: fixed sub-questions, k=1"]
+    plan --> retrieve["retrieve: top-k per sub-question"]
+    retrieve --> synthesize["synthesize: draft answer"]
+    synthesize --> reflect["reflect: coverage critique"]
+    reflect -->|"min_sources < _REQUIRED_SOURCES"| revise["revise: k += 1, revisions += 1"]
+    reflect -->|"min_sources >= _REQUIRED_SOURCES"| finalize["finalize"]
     revise --> retrieve
-    finalize --> END((END))
+    finalize --> END(["END"])
 ```
+
+Legend: the edge out of `reflect` is the coverage-critique branch
+(`route_after_reflect`); `revise -> retrieve` is the bounded reflection loop
+that deepens `k` until the critique passes.
+
+Flow notes:
+
+- `reflect` computes `min_sources`, the smallest passage count across all
+  sub-questions, and compares it against `_REQUIRED_SOURCES` (2).
+- `route_after_reflect` sends the run to `revise` when coverage is
+  insufficient (loops back to `retrieve` with a higher `k`), or to
+  `finalize` once every sub-question has enough sources.
+- The loop is bounded in practice by `_REQUIRED_SOURCES`: `revise` only ever
+  raises `k` to `_REQUIRED_SOURCES`, so this fixed corpus converges in
+  exactly one revision (see Common Mistakes for the production caveat about
+  an explicit `max_revisions` ceiling).
 
 Sequence of the reflect/revise cycle:
 

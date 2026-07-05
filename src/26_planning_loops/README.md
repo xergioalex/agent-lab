@@ -44,15 +44,52 @@ while you run out of gas.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> plan[plan]
-    plan --> execute_step[execute_step]
-    execute_step -->|more steps, no failure| execute_step
-    execute_step -->|failure, under cap| replan[replan]
-    execute_step -->|done, or cap reached| finalize[finalize]
+flowchart TD
+    START([START]) --> plan["plan(state)"]
+    plan --> execute_step["execute_step(state)"]
+    execute_step -->|"remaining empty OR iteration >= max_iterations"| finalize["finalize(state)"]
+    execute_step -->|"needs_replan (and under cap)"| replan["replan(state)"]
+    execute_step -->|"else: more steps, no failure"| execute_step
     replan --> execute_step
-    finalize --> END((END))
+    finalize --> END([END])
 ```
+
+*Legend: edge labels are `route_after_execute`'s three branches, evaluated
+in this order; the loop back to `execute_step` is the normal one-step-per-turn
+path, and `replan` is the corrective detour before that loop resumes.*
+
+**Flow notes**
+
+- `plan` seeds `context["remaining"]` with the scenario's steps, or a single
+  `"respond_directly"` step if none were given.
+- `execute_step` pops and runs the next step, recording
+  `needs_replan=True` when the step has no matching tool or the tool raises.
+- `route_after_execute` checks, in order: (1) no steps remain -> `finalize`;
+  (2) `iteration >= max_iterations` -> `finalize` even if steps remain
+  (they are abandoned); (3) `needs_replan` -> `replan`; (4) otherwise loop
+  back to `execute_step` for the next step.
+- `replan` increments `iteration` and inserts the diagnostic step
+  `search_knowledge_base` at the front of `remaining` (only if not already
+  queued), then always returns to `execute_step`.
+- `finalize` reports either `"plan completed after N replan(s)"` or
+  `"iteration cap reached ..., abandoned"`, depending on whether `remaining`
+  is empty when it runs.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Planning
+    Planning --> Executing
+    Executing --> Executing: step succeeds, steps remain
+    Executing --> Replanning: step fails (needs_replan) and iteration < max_iterations
+    Replanning --> Executing
+    Executing --> Finalizing: remaining empty
+    Executing --> Finalizing: iteration >= max_iterations
+    Finalizing --> [*]
+```
+
+*Legend: this is the same loop as the flowchart above, viewed as a state
+machine — `Replanning` is a transient state the loop always returns to
+`Executing` from; `Finalizing` is the only terminal state.*
 
 ```mermaid
 sequenceDiagram

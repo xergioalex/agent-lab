@@ -46,12 +46,29 @@ publication with whatever's on the page.
 ## Architecture
 
 ```mermaid
-graph LR
-    START((START)) --> generate[generate]
-    generate --> critique[critique]
-    critique -->|revise| add_feedback[add_feedback]
-    critique -->|approved| END((END))
+flowchart LR
+    START(["START"]) --> generate["generate"]
+    generate --> critique["critique"]
+    critique -->|"verdict == 'revise'"| add_feedback["add_feedback"]
+    critique -->|"verdict == 'approved'"| END(["END"])
     add_feedback --> generate
+```
+
+*Legend: node ids match `add_node("generate"|"critique"|"add_feedback", ...)`;*
+*edge labels are the `context["verdict"]` value `route_after_critique` reads*
+*(it returns `"revise"`/`"done"`, mapped here to the `add_feedback`/`END`*
+*edges); `add_feedback --> generate` is the revision loop.*
+
+The loop as a state machine:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Generating
+    Generating --> Critiquing
+    Critiquing --> Revising: verdict == "revise" (word_count < MIN_WORDS and iteration < MAX_ITERATIONS)
+    Critiquing --> Done: verdict == "approved" (word_count >= MIN_WORDS or iteration >= MAX_ITERATIONS)
+    Revising --> Generating: add_feedback appends a new HumanMessage
+    Done --> [*]
 ```
 
 ```mermaid
@@ -76,6 +93,21 @@ sequenceDiagram
     C->>C: iteration >= MAX_ITERATIONS -> "approved" (cap forces it)
     C-->>U: final draft + verdict=approved
 ```
+
+Flow notes:
+
+- **`verdict == "revise"`** — fires when the draft is under `MIN_WORDS`
+  **and** the iteration cap hasn't been hit yet; `add_feedback` appends a
+  new `HumanMessage("Revise: ...")` and the loop returns to `generate`.
+- **`verdict == "approved"`** — fires either because the draft finally
+  meets `MIN_WORDS`, **or** because `iteration >= MAX_ITERATIONS` — the cap
+  forces approval even on a draft that never got long enough, guaranteeing
+  termination regardless of model behavior.
+- **`add_feedback`** only appends; it never edits or removes the prior
+  draft, so `generate`'s next call sees the full history including exactly
+  what was critiqued.
+- **`generate --> critique`** is unconditional — every draft, including the
+  first, is judged before any decision about revising is made.
 
 ## Runnable Example
 
