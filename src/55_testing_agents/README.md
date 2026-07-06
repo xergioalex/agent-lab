@@ -113,7 +113,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/55_testing_agents/testing_agents.py
+python src/55_testing_agents/main.py
 ```
 
 Expected output (deterministic — the fake model makes tool selection and

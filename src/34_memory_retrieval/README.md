@@ -99,7 +99,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/34_memory_retrieval/memory_retrieval.py
+python src/34_memory_retrieval/main.py
 ```
 
 Expected output (deterministic, log timestamp varies):

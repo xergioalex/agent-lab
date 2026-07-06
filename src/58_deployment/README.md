@@ -137,7 +137,7 @@ Flow notes:
 ## Runnable Example
 
 ```bash
-python src/58_deployment/deployment.py
+python src/58_deployment/main.py
 ```
 
 Expected output (deterministic; reflects the repo's actual compose/CI files):

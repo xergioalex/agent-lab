@@ -117,7 +117,7 @@ back to the relationship-walk loop instead of collecting a result.*
 ## Runnable Example
 
 ```bash
-python src/44_graph_modeling_cypher/graph_modeling_cypher.py
+python src/44_graph_modeling_cypher/main.py
 ```
 
 Expected output (deterministic):

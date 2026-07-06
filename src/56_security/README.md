@@ -126,7 +126,7 @@ Flow notes:
 ## Runnable Example
 
 ```bash
-python src/56_security/security.py
+python src/56_security/main.py
 ```
 
 Expected output (deterministic):

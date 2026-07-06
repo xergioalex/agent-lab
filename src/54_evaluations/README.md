@@ -113,7 +113,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/54_evaluations/evaluations.py
+python src/54_evaluations/main.py
 ```
 
 Expected output (deterministic):

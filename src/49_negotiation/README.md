@@ -107,7 +107,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/49_negotiation/negotiation.py
+python src/49_negotiation/main.py
 ```
 
 Expected output (truncated, deterministic):

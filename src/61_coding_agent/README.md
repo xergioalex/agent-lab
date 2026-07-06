@@ -115,7 +115,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/61_coding_agent/coding_agent.py
+python src/61_coding_agent/main.py
 ```
 
 Expected output (truncated, deterministic):

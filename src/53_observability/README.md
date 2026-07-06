@@ -106,7 +106,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/53_observability/observability.py
+python src/53_observability/main.py
 ```
 
 Expected output (latency values vary by machine, structure is stable):

@@ -129,7 +129,7 @@ finite number of times or leaves it for good via `Succeeded` or `CircuitOpen`.
 ## Runnable Example
 
 ```bash
-python src/14_error_handling/error_handling.py
+python src/14_error_handling/main.py
 ```
 
 Expected output (deterministic; log lines precede the two result lines):

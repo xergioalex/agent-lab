@@ -92,7 +92,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/60_research_agent/research_agent.py
+python src/60_research_agent/main.py
 ```
 
 Expected output (truncated, deterministic):

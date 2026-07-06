@@ -11,8 +11,8 @@ After this module you can:
   specialists, and a conditional tool-calling loop, all in one graph.
 - Read a structured, deterministic observability summary
   (`subsystems=[...] tool_calls=N`) logged at the end of every run.
-- Describe how this module deepens the `10_full_brain_simulation` stub into
-  a real, runnable capstone.
+- Describe how this module deepens the on-ramp `10_full_brain_simulation` with
+  observability, multi-turn memory, and production-grade composition.
 
 **Integrates:** Track 1 routing (module
 [`11_graph_branching`](../11_graph_branching/README.md)), Track 3 tools
@@ -23,8 +23,8 @@ After this module you can:
 multi-agent cooperation (module
 [`09_multi_agent_systems`](../09_multi_agent_systems/README.md)), and Track 8
 observability (structured `get_logger` summaries). It deepens
-[`10_full_brain_simulation`](../10_full_brain_simulation/README.md), which is
-currently a banner-only stub.
+[`10_full_brain_simulation`](../10_full_brain_simulation/README.md) — on-ramp
+integrated brain this module extends with observability and session memory.
 
 ## Theory
 
@@ -141,7 +141,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/64_mini_dailybot_brain/mini_dailybot_brain.py
+python src/64_mini_dailybot_brain/main.py
 ```
 
 Expected output (truncated, deterministic):
@@ -203,10 +203,8 @@ memory_log_entries=2
 
 ## Suggested Improvements
 
-- Replace the stub banner in
-  [`10_full_brain_simulation/brain.py`](../10_full_brain_simulation/brain.py)
-  with a thin wrapper that imports and calls this module's `build_graph()`,
-  once cross-module imports are acceptable for that track.
+- Factor shared `build_graph()` helpers into `src/shared/` if module `10` should
+  import this capstone graph directly without duplication.
 - Add latency and token-count fields to the observability summary once a
   real `ChatOpenAI` backend is configured.
 
@@ -220,7 +218,7 @@ memory_log_entries=2
   [`docs/observability.md`](../../docs/observability.md) — the five deep-dive
   handbook pages this brain integrates in one run.
 - Module [`10_full_brain_simulation`](../10_full_brain_simulation/README.md)
-  — the stub this module deepens.
+  — on-ramp integrated brain this module extends.
 - Modules [`59_personal_assistant`](../59_personal_assistant/README.md),
   [`60_research_agent`](../60_research_agent/README.md),
   [`61_coding_agent`](../61_coding_agent/README.md),

@@ -100,7 +100,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/17_function_calling/tool_loop.py
+python src/17_function_calling/main.py
 ```
 
 Expected output (deterministic — `FakeToolCallingModel` has `max_tool_calls=2`):

@@ -106,7 +106,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/41_reranking/reranking.py
+python src/41_reranking/main.py
 ```
 
 Expected output (deterministic, truncated):

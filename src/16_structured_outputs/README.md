@@ -121,7 +121,7 @@ returns to `Invoking` a bounded number of times or leaves for good via
 ## Runnable Example
 
 ```bash
-python src/16_structured_outputs/structured_output.py
+python src/16_structured_outputs/main.py
 ```
 
 Expected output (deterministic — attempt 1 is rejected, attempt 2 succeeds):

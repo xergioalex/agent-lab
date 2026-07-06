@@ -85,7 +85,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/32_procedural_memory/procedural_memory.py
+python src/32_procedural_memory/main.py
 ```
 
 Expected output (deterministic, log timestamp varies):

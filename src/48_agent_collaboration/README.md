@@ -93,7 +93,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/48_agent_collaboration/collaboration.py
+python src/48_agent_collaboration/main.py
 ```
 
 Expected output (truncated, deterministic):

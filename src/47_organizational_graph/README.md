@@ -145,7 +145,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/47_organizational_graph/organizational_graph.py
+python src/47_organizational_graph/main.py
 ```
 
 Expected output (deterministic):

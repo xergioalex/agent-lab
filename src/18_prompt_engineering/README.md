@@ -105,7 +105,7 @@ Flow notes:
 ## Runnable Example
 
 ```bash
-python src/18_prompt_engineering/prompt_engineering.py
+python src/18_prompt_engineering/main.py
 ```
 
 Expected output (deterministic):

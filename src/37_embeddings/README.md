@@ -124,7 +124,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/37_embeddings/embeddings.py
+python src/37_embeddings/main.py
 ```
 
 Expected output (deterministic, truncated):

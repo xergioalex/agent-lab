@@ -98,7 +98,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/11_graph_branching/branching.py
+python src/11_graph_branching/main.py
 ```
 
 Expected output (truncated, deterministic):

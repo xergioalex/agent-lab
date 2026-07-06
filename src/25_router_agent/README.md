@@ -84,7 +84,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/25_router_agent/router_agent.py
+python src/25_router_agent/main.py
 ```
 
 Expected output (deterministic, offline):

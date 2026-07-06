@@ -97,7 +97,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/33_memory_writer/memory_writer.py
+python src/33_memory_writer/main.py
 ```
 
 Expected output (deterministic, log timestamp varies):

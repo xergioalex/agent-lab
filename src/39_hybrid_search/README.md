@@ -99,7 +99,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/39_hybrid_search/hybrid.py
+python src/39_hybrid_search/main.py
 ```
 
 Expected output (deterministic, truncated):

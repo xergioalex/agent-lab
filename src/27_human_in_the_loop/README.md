@@ -117,7 +117,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/27_human_in_the_loop/human_in_the_loop.py
+python src/27_human_in_the_loop/main.py
 ```
 
 Expected output (deterministic, offline):

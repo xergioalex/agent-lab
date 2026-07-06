@@ -119,7 +119,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/40_query_rewriting/query_rewriting.py
+python src/40_query_rewriting/main.py
 ```
 
 Expected output (deterministic, truncated):

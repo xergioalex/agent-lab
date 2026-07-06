@@ -99,7 +99,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/31_semantic_memory/semantic_memory.py
+python src/31_semantic_memory/main.py
 ```
 
 Expected output (deterministic, log timestamp varies):

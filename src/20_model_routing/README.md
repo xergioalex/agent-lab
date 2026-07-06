@@ -109,7 +109,7 @@ Flow notes:
 ## Runnable Example
 
 ```bash
-python src/20_model_routing/model_router.py
+python src/20_model_routing/main.py
 ```
 
 Expected output (deterministic):

@@ -112,7 +112,7 @@ Flow notes:
 ## Runnable Example
 
 ```bash
-python src/24_reflection/reflection.py
+python src/24_reflection/main.py
 ```
 
 Expected output (deterministic, offline):

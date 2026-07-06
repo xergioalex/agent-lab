@@ -117,7 +117,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/62_incident_response_agent/incident_agent.py
+python src/62_incident_response_agent/main.py
 ```
 
 Expected output (truncated, deterministic):

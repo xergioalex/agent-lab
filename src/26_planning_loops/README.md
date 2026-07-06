@@ -116,7 +116,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/26_planning_loops/planning_loops.py
+python src/26_planning_loops/main.py
 ```
 
 Expected output (deterministic, offline):

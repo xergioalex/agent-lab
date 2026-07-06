@@ -122,7 +122,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/42_qdrant_production/qdrant_production.py
+python src/42_qdrant_production/main.py
 ```
 
 Expected output offline (`QDRANT_URL` unset — the path this script and its
@@ -139,7 +139,7 @@ With a real Qdrant instance running and `QDRANT_URL` set (not exercised by
 the smoke test, since `qdrant-client` is not installed here):
 
 ```bash
-QDRANT_URL=http://localhost:6333 python src/42_qdrant_production/qdrant_production.py
+QDRANT_URL=http://localhost:6333 python src/42_qdrant_production/main.py
 # collection=agent_lab_docs backend=QdrantAdapter docs=4
 ```
 
@@ -201,7 +201,7 @@ QDRANT_URL=http://localhost:6333 python src/42_qdrant_production/qdrant_producti
 - Qdrant payloads and filtering:
   https://qdrant.tech/documentation/concepts/payload/
 - [`07_qdrant_integration`](../07_qdrant_integration/README.md) — the
-  original placeholder this module deepens.
+  on-ramp introduction in module `07`; this module deepens production patterns.
 - [`docs/qdrant.md`](../../docs/qdrant.md) — the production vector-store
   path in depth.
 

@@ -109,7 +109,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/51_shared_memory/blackboard.py
+python src/51_shared_memory/main.py
 ```
 
 Expected output (truncated, deterministic):

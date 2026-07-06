@@ -127,7 +127,7 @@ Flow notes:
 ## Runnable Example
 
 ```bash
-python src/57_cost_and_multitenancy/cost_and_multitenancy.py
+python src/57_cost_and_multitenancy/main.py
 ```
 
 Expected output (deterministic):

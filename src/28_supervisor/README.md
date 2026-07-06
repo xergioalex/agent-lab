@@ -106,7 +106,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/28_supervisor/supervisor.py
+python src/28_supervisor/main.py
 ```
 
 Expected output (deterministic, offline):

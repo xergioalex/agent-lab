@@ -104,7 +104,7 @@ Flow notes:
 ## Runnable Example
 
 ```bash
-python src/21_react_agent/react_agent.py
+python src/21_react_agent/main.py
 ```
 
 Expected output (deterministic, offline):

@@ -110,7 +110,7 @@ Flow notes:
 ## Runnable Example
 
 ```bash
-python src/23_executor_agent/executor_agent.py
+python src/23_executor_agent/main.py
 ```
 
 Expected output (deterministic, offline):

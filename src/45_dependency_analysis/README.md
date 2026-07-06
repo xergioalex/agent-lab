@@ -133,7 +133,7 @@ GRAY node" into the reported cycle path.*
 ## Runnable Example
 
 ```bash
-python src/45_dependency_analysis/dependency_analysis.py
+python src/45_dependency_analysis/main.py
 ```
 
 Expected output (deterministic):

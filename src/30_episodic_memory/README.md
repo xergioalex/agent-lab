@@ -103,7 +103,7 @@ already recorded.*
 ## Runnable Example
 
 ```bash
-python src/30_episodic_memory/episodic_memory.py
+python src/30_episodic_memory/main.py
 ```
 
 Expected output (deterministic, log timestamp varies):

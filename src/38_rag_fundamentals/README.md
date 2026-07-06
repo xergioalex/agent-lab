@@ -97,7 +97,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/38_rag_fundamentals/rag.py
+python src/38_rag_fundamentals/main.py
 ```
 
 Expected output (deterministic):

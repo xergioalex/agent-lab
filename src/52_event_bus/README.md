@@ -117,7 +117,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/52_event_bus/event_bus.py
+python src/52_event_bus/main.py
 ```
 
 Expected output (truncated, deterministic):

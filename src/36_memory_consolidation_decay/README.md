@@ -118,7 +118,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/36_memory_consolidation_decay/memory_consolidation_decay.py
+python src/36_memory_consolidation_decay/main.py
 ```
 
 Expected output (deterministic, log timestamp varies):

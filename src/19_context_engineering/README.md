@@ -118,7 +118,7 @@ Flow notes:
 ## Runnable Example
 
 ```bash
-python src/19_context_engineering/context_budget.py
+python src/19_context_engineering/main.py
 ```
 
 Expected output (deterministic):

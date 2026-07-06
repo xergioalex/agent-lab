@@ -111,7 +111,7 @@ Flow notes:
 ## Runnable Example
 
 ```bash
-python src/22_planner_agent/planner_agent.py
+python src/22_planner_agent/main.py
 ```
 
 Expected output (deterministic, offline):

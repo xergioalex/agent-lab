@@ -88,7 +88,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/35_memory_scoring/memory_scoring.py
+python src/35_memory_scoring/main.py
 ```
 
 Expected output (deterministic, log timestamp varies):

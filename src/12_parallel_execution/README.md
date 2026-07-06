@@ -102,7 +102,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/12_parallel_execution/parallel.py
+python src/12_parallel_execution/main.py
 ```
 
 Expected output (deterministic):

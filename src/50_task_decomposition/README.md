@@ -109,7 +109,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/50_task_decomposition/decomposition.py
+python src/50_task_decomposition/main.py
 ```
 
 Expected output (truncated, deterministic):

@@ -106,7 +106,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/15_chat_models/chat_turn.py
+python src/15_chat_models/main.py
 ```
 
 Expected output (deterministic):

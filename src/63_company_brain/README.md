@@ -105,7 +105,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/63_company_brain/company_brain.py
+python src/63_company_brain/main.py
 ```
 
 Expected output (truncated, deterministic):

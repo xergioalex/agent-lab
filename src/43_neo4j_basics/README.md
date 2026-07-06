@@ -36,7 +36,7 @@ pure Python — no server, no driver. The **backend-selection pattern** shown
 here — check `get_settings().has_neo4j()`, import the real driver lazily
 only on that path, otherwise use the in-memory store — is the pattern every
 later module in this track (`44`–`47`) builds on, and the one module `08`
-was a placeholder for.
+was introduced in module `08`.
 
 ## Mental Models
 
@@ -128,7 +128,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/43_neo4j_basics/neo4j_basics.py
+python src/43_neo4j_basics/main.py
 ```
 
 Expected output (offline fallback, deterministic):
@@ -200,7 +200,7 @@ exercise the real-backend branch instead; it prints
 
 - Neo4j property graph model: https://neo4j.com/docs/getting-started/appendix/graphdb-concepts/
 - [`src/shared/graphstore.py`](../shared/README.md) — the `InMemoryGraphStore` implementation this module wraps.
-- [`src/08_graph_memory_neo4j`](../08_graph_memory_neo4j/README.md) — the original graph-memory placeholder this module deepens.
+- [`src/08_graph_memory_neo4j`](../08_graph_memory_neo4j/README.md) — on-ramp graph memory this module deepens.
 - [`docs/neo4j.md`](../../docs/neo4j.md) — property-graph model, backend gating, and graph algorithms across modules 43–47.
 
 ## What Comes Next

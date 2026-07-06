@@ -116,7 +116,7 @@ silently produces a wrong ranking.*
 ## Runnable Example
 
 ```bash
-python src/46_root_cause_analysis/root_cause_analysis.py
+python src/46_root_cause_analysis/main.py
 ```
 
 Expected output (deterministic):

@@ -98,7 +98,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/59_personal_assistant/assistant.py
+python src/59_personal_assistant/main.py
 ```
 
 Expected output (truncated, deterministic):

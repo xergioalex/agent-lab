@@ -102,7 +102,7 @@ sequenceDiagram
 ## Runnable Example
 
 ```bash
-python src/13_async_nodes/async_nodes.py
+python src/13_async_nodes/main.py
 ```
 
 Expected output shape (exact timings vary slightly by machine, but async is

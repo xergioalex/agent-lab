@@ -105,7 +105,7 @@ what each keeps vs. discards, not a compiled LangGraph run.*
 ## Runnable Example
 
 ```bash
-python src/29_conversation_memory/conversation_memory.py
+python src/29_conversation_memory/main.py
 ```
 
 Expected output (deterministic, log timestamp varies):
