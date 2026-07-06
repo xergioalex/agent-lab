@@ -28,16 +28,16 @@ Learner / Agent
   src/06_memory_basics    ──► in-process memory list
       │
       ▼
-  src/07_qdrant           ──► vector search (mock)
+  src/07_qdrant           ──► vector index + similarity search (Qdrant optional)
       │
       ▼
-  src/08_neo4j            ──► graph memory (mock)
+  src/08_neo4j            ──► graph memory + traversal (Neo4j optional)
       │
       ▼
-  src/09_multi_agent      ──► planner + executor agents
+  src/09_multi_agent      ──► planner + executor + critic loop
       │
       ▼
-  src/10_full_brain       ──► capstone combining all systems
+  src/10_full_brain       ──► integrated mini brain (extended in 64)
 ```
 
 ## Components
@@ -46,7 +46,7 @@ Learner / Agent
 
 Each module is self-contained:
 
-- One or more `.py` exercise files
+- One `main.py` exercise entrypoint per module
 - A `README.md` with concept, key idea, and exercise goal
 - No cross-imports between numbered modules (learners copy patterns forward)
 
@@ -85,10 +85,10 @@ Early modules (`01`) use plain functions before introducing LangGraph (`02`).
 | Dependency | Used in | Notes |
 |------------|---------|-------|
 | `langgraph` | `02+` | Graph compilation and execution |
-| `langchain-openai` | `03+` | Requires `OPENAI_API_KEY` at runtime |
-| Qdrant | `07` | Placeholder mock only |
-| Neo4j | `08` | Placeholder mock only |
+| `langchain-openai` | `03+` | Optional — `get_chat_model()` fakes offline |
+| Qdrant | `07`, `42` | Optional — `InMemoryVectorStore` offline default |
+| Neo4j | `08`, `43+` | Optional — `InMemoryGraphStore` offline default |
 
 ## Deployment Shape
 
-None. All exercises run locally via `python src/<module>/<script>.py`.
+None. All exercises run locally via `python src/<module>/main.py`.

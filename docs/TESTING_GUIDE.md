@@ -4,8 +4,8 @@
 
 | Tool | Purpose | Command |
 |------|---------|---------|
-| **pytest** | Smoke tests for all offline modules | `pytest` |
-| **Manual script run** | LLM module with live API key | `OPENAI_API_KEY=... python src/03_llm_nodes/llm_node.py` |
+| **pytest** | Smoke tests for all 64 modules (offline) | `pytest` |
+| **Manual script run** | Optional live OpenAI backend | `OPENAI_API_KEY=... python src/03_llm_nodes/main.py` |
 
 Install test dependencies with the main requirements:
 
@@ -17,13 +17,15 @@ pip install -r requirements.txt
 
 ```
 tests/
-└── test_smoke.py    # Subprocess runs for every module script + shared import
+├── conftest.py              # offline_env() + run_module()
+├── test_smoke.py            # on-ramp modules 01–10
+├── test_track1_foundations.py … test_track9_projects.py
 ```
 
 ## Running Tests
 
 ```bash
-# All smoke tests (11 tests)
+# All smoke tests (65 tests across 64 modules + shared)
 pytest
 
 # Verbose output
@@ -33,33 +35,34 @@ pytest -v
 pytest tests/test_smoke.py::test_state_basics_runs -v
 
 # All exercise script tests
-pytest tests/test_smoke.py -k "runs or placeholder or multi_agent or brain or tools or llm" -v
+pytest tests/test_smoke.py -k "runs or multi_agent or brain or tools or llm" -v
 ```
 
 ## What Is Covered (automated)
 
 | Test | Module | Script | Assertion |
 |------|--------|--------|-----------|
-| `test_state_basics_runs` | 01 | `hello_world.py` | exit 0, `"hello"` in output |
-| `test_langgraph_basics_runs` | 02 | `basic_graph.py` | exit 0, `"start"` in output |
-| `test_llm_nodes_requires_api_key` | 03 | `llm_node.py` | non-zero exit without key |
-| `test_routing_runs` | 04 | `router.py` | exit 0, `"blocker"` in output |
-| `test_tools_runs` | 05 | `mock_tool.py` | exit 0, `"Slack sent"` in output |
-| `test_memory_basics_runs` | 06 | `memory.py` | exit 0, `"login"` in output |
-| `test_qdrant_placeholder_runs` | 07 | `mock_qdrant.py` | exit 0, placeholder text |
-| `test_neo4j_placeholder_runs` | 08 | `mock_graph.py` | exit 0, placeholder text |
-| `test_multi_agent_runs` | 09 | `agents.py` | exit 0, `"done"` in output |
-| `test_brain_simulation_runs` | 10 | `brain.py` | exit 0, banner text |
+| `test_state_basics_runs` | 01 | `main.py` | exit 0, `"hello"` + `MODULE 01` |
+| `test_langgraph_basics_runs` | 02 | `main.py` | exit 0, `"start"` + `MODULE 02` |
+| `test_llm_nodes_runs_offline` | 03 | `main.py` | exit 0, offline or openai backend |
+| `test_routing_runs` | 04 | `main.py` | exit 0, `"blocker"` in output |
+| `test_tools_runs` | 05 | `main.py` | exit 0, `"Slack sent"` |
+| `test_memory_basics_runs` | 06 | `main.py` | exit 0, `"login"` |
+| `test_qdrant_integration_runs` | 07 | `main.py` | exit 0, `indexed=3` |
+| `test_graph_memory_neo4j_runs` | 08 | `main.py` | exit 0, org graph finding |
+| `test_multi_agent_runs` | 09 | `main.py` | exit 0, `"done"` |
+| `test_brain_simulation_runs` | 10 | `main.py` | exit 0, integrated brain banner |
 | `test_shared_state_typeddict` | shared | `state.py` | import + annotation check |
 
 ## What Requires Manual Validation
 
 | Module | Reason | Command |
 |--------|--------|---------|
-| `03_llm_nodes` | Live OpenAI API call | `export OPENAI_API_KEY=sk-... && python src/03_llm_nodes/llm_node.py` |
+| `03_llm_nodes` | Optional live OpenAI backend | `export OPENAI_API_KEY=sk-... && python src/03_llm_nodes/main.py` |
+| `07`, `42` | Optional real Qdrant | `docker compose up -d` + `QDRANT_URL=http://localhost:6333` |
+| `08`, `43+` | Optional real Neo4j | `NEO4J_URI=bolt://localhost:7687` |
 
-Without an API key, module 03 is still validated automatically — the smoke test
-confirms it fails with a clear credentials error.
+Tests always run offline via `tests/conftest.py` (`offline_env()` strips API keys and service URLs).
 
 ## Run All Exercises Manually
 
@@ -70,19 +73,19 @@ Quick reference:
 
 ```bash
 # Offline modules (all exit 0)
-python src/01_state_basics/hello_world.py
-python src/02_langgraph_basics/basic_graph.py
-python src/04_routing_and_branches/router.py
-python src/05_tools/mock_tool.py
-python src/06_memory_basics/memory.py
-python src/07_qdrant_integration/mock_qdrant.py
-python src/08_graph_memory_neo4j/mock_graph.py
-python src/09_multi_agent_systems/agents.py
-python src/10_full_brain_simulation/brain.py
+python src/01_state_basics/main.py
+python src/02_langgraph_basics/main.py
+python src/04_routing_and_branches/main.py
+python src/05_tools/main.py
+python src/06_memory_basics/main.py
+python src/07_qdrant_integration/main.py
+python src/08_graph_memory_neo4j/main.py
+python src/09_multi_agent_systems/main.py
+python src/10_full_brain_simulation/main.py
 
 # LLM module (requires key)
 export OPENAI_API_KEY=sk-...
-python src/03_llm_nodes/llm_node.py
+python src/03_llm_nodes/main.py
 ```
 
 ## Validation Results (last run)

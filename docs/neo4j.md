@@ -6,7 +6,7 @@ the graph algorithms (pattern matching, traversal, cycle detection,
 root-cause ranking, multi-hop queries) that Track 6 (`43`–`47`) exercises.
 Read this alongside
 [`src/08_graph_memory_neo4j/README.md`](../src/08_graph_memory_neo4j/README.md)
-(the original placeholder this track replaces with working exercises) and
+(on-ramp introduction in module `07`; this module deepens production patterns) and
 [`src/shared/graphstore.py`](../src/shared/README.md) (the underlying
 `InMemoryGraphStore` implementation).
 
@@ -192,5 +192,5 @@ grows.
 | DAGs, topological sort, cycle detection | [`45_dependency_analysis`](../src/45_dependency_analysis/README.md) |
 | Root cause analysis, blast radius | [`46_root_cause_analysis`](../src/46_root_cause_analysis/README.md) |
 | Multi-hop org queries | [`47_organizational_graph`](../src/47_organizational_graph/README.md) |
-| Original graph-memory placeholder | [`08_graph_memory_neo4j`](../src/08_graph_memory_neo4j/README.md) |
+| On-ramp graph memory | [`08_graph_memory_neo4j`](../src/08_graph_memory_neo4j/README.md) |
 | Shared graph store implementation | [`src/shared`](../src/shared/README.md) |

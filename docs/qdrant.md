@@ -6,7 +6,7 @@ used across modules 37-41) to Qdrant, a real vector database — and how
 the real client behind an environment variable so the whole repository stays
 offline-first. Read alongside [`docs/rag.md`](rag.md) (the retrieval theory
 this backs) and [`src/07_qdrant_integration/README.md`](../src/07_qdrant_integration/README.md)
-(the original placeholder module 42 deepens).
+(on-ramp introduction in module `07`; module `42` deepens production patterns).
 
 ## 1. Prototype vs. Production
 
@@ -40,7 +40,7 @@ graph TD
 **Critical detail:** `qdrant-client` is not installed in this environment.
 `from qdrant_client import QdrantClient` lives *inside* `_build_qdrant_store`
 — never at module top level — so importing or running
-`src/42_qdrant_production/qdrant_production.py` never touches that import
+`src/42_qdrant_production/main.py` never touches that import
 unless `QDRANT_URL` is actually set. This is the same lazy-import pattern
 `src/shared/llm.py` (`ChatOpenAI`) and `src/shared/embeddings.py`
 (`OpenAIEmbeddings`) already use for `langchain_openai`. The offline fallback
@@ -104,7 +104,7 @@ here), but the code path is ready for it:
 ```bash
 # Requires: pip install qdrant-client, and a running Qdrant service.
 docker run -p 6333:6333 qdrant/qdrant
-QDRANT_URL=http://localhost:6333 python src/42_qdrant_production/qdrant_production.py
+QDRANT_URL=http://localhost:6333 python src/42_qdrant_production/main.py
 # collection=agent_lab_docs backend=QdrantAdapter docs=4
 ```
 

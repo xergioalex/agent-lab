@@ -51,7 +51,7 @@ graph LR
 Reject before you generate: check emptiness and length (`MAX_INPUT_LENGTH`)
 before any model call. This is the cheapest defense and catches whole classes
 of bugs (empty prompts, resource-exhaustion payloads) for free. See
-`validate_input` in `src/56_security/security.py`.
+`validate_input` in `src/56_security/main.py`.
 
 ## Prompt-Injection Defenses
 

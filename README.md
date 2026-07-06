@@ -37,7 +37,7 @@ Each folder contains:
 ```bash
 pip install -r requirements.txt   # or: pip install -e ".[dev]"
 pytest                            # validate ALL offline exercises — no keys/services
-python src/01_state_basics/hello_world.py
+python src/01_state_basics/main.py
 make help                         # task runner: test, lint, typecheck, run, up/down
 ```
 

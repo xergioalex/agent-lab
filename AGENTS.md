@@ -83,8 +83,8 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`.
 
 - Run `pytest` from the repository root before marking work complete.
 - Smoke tests in `tests/test_smoke.py` cover modules that do not require API keys.
-- Modules `03_llm_nodes` and later LLM-dependent exercises require `OPENAI_API_KEY`
-  and are validated manually until mocked tests are added.
+- Modules `03_llm_nodes` and later use `get_chat_model()` — offline fakes by default;
+  set `OPENAI_API_KEY` to activate the real backend.
 - Target coverage: exercise scripts run without error; pytest smoke suite passes.
 
 ### Error Handling and Logging
@@ -114,9 +114,11 @@ active work waiting for reporting approval.
 | Run smoke tests | `pytest` |
 | Run smoke tests (verbose) | `pytest -v` |
 | Run a single module script | `python src/<module>/<script>.py` |
-| State basics exercise | `python src/01_state_basics/hello_world.py` |
-| LangGraph basics exercise | `python src/02_langgraph_basics/basic_graph.py` |
-| LLM node exercise (needs API key) | `OPENAI_API_KEY=... python src/03_llm_nodes/llm_node.py` |
+| State basics exercise | `python src/01_state_basics/main.py` |
+| LangGraph basics exercise | `python src/02_langgraph_basics/main.py` |
+| LLM node exercise (offline by default) | `python src/03_llm_nodes/main.py` |
+| Run any module | `make run MODULE=01_state_basics` |
+| Start Qdrant + Neo4j | `make up` |
 | Create a Deep Work Plan | `/dwp-create <goal>` |
 | Execute current plan | `/dwp-execute` |
 | Verify repo conformance | `/dwp-verify` |

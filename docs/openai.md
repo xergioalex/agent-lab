@@ -103,7 +103,7 @@ counts and cost reconciliation.
 
 ```bash
 export OPENAI_API_KEY=sk-your-key
-python src/15_chat_models/chat_turn.py     # now calls real ChatOpenAI
+python src/15_chat_models/main.py     # now calls real ChatOpenAI
 ```
 
 Every Track 2 script accepts this transparently — none of them special-case

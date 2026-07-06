@@ -29,7 +29,7 @@ When handing work to another agent or human:
 
 - Humans may work through modules manually; agents should not skip ahead unless asked.
 - Agents should explain concepts in module README terms, not replace the curriculum.
-- Ask before replacing placeholder mocks (`07`, `08`) with real service integrations.
+- Ask before enabling paid API backends in shared CI environments.
 
 ## Progress Reporting
 

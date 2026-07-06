@@ -20,8 +20,8 @@ pip install -r requirements.txt
 
 ```bash
 pytest                                    # Must pass — no API key needed
-python src/01_state_basics/hello_world.py # Quick sanity check
-python src/02_langgraph_basics/basic_graph.py
+python src/01_state_basics/main.py # Quick sanity check
+python src/02_langgraph_basics/main.py
 ```
 
 ## 4. Understand the Learning Path

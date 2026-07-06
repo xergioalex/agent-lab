@@ -43,7 +43,7 @@ engineering.
 Documents are split into chunks before embedding because (a) embeddings and
 context windows have finite size, and (b) a chunk mixing several topics
 dilutes the vector for any single one. See
-[`src/37_embeddings/embeddings.py`](../src/37_embeddings/embeddings.py) for a
+[`src/37_embeddings/main.py`](../src/37_embeddings/main.py) for a
 worked example: sentence-sized chunks isolate a relevant sentence and score
 higher against a focused query; one giant chunk dilutes the same signal with
 unrelated topics and scores lower. Chunk size is a knob, not a constant —
@@ -145,7 +145,7 @@ Build these checks before tuning any single retrieval technique — otherwise
 
 | Module | Adds |
 |--------|------|
-| [`07_qdrant_integration`](../src/07_qdrant_integration/README.md) | Original placeholder — superseded in depth by module 42 |
+| [`07_qdrant_integration`](../src/07_qdrant_integration/README.md) | On-ramp vector graph — deepened in module 42 |
 | [`37_embeddings`](../src/37_embeddings/README.md) | Vectors, cosine similarity, chunking |
 | [`38_rag_fundamentals`](../src/38_rag_fundamentals/README.md) | The full retrieve -> augment -> generate loop |
 | [`39_hybrid_search`](../src/39_hybrid_search/README.md) | Dense + keyword fusion (RRF) |

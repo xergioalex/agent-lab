@@ -114,7 +114,7 @@ def _run(rel: str):
     )
 
 def test_graph_branching_runs():
-    result = _run("src/11_graph_branching/branching.py")
+    result = _run("src/11_graph_branching/main.py")
     assert result.returncode == 0
     assert "blocker" in result.stdout
 ```

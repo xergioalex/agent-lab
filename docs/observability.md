@@ -19,7 +19,7 @@ or network call is required to produce a trace.
   diagnostic lines (node enter/exit, warnings, errors) alongside it.
 - **Never** swallow an exception silently — log via `logger.exception(...)`
   (captures the traceback) and re-raise, exactly as
-  `src/53_observability/observability.py`'s `traced_node` wrapper does.
+  `src/53_observability/main.py`'s `traced_node` wrapper does.
 
 ```mermaid
 graph LR
@@ -51,7 +51,7 @@ provider's tokenizer (e.g. `tiktoken`) when precision matters; the shape of
 A **run tree** is the ordered record of which nodes executed, with what
 duration and estimated token cost — a minimal, offline stand-in for what a
 real tracer (LangSmith, OpenTelemetry) captures as a span tree. See
-`src/53_observability/observability.py`'s `RunTree` / `RunSpan` for the
+`src/53_observability/main.py`'s `RunTree` / `RunSpan` for the
 reference implementation: a decorator (`traced_node`) records a `RunSpan` per
 node call without the node itself knowing it is observed.
 

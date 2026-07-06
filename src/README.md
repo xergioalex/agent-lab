@@ -8,39 +8,47 @@ Progressive hands-on exercises under `src/`. Run every script from the **reposit
 pip install -r requirements.txt
 ```
 
-Optional for module 03 only:
+Optional — activate real backends in `.env` (see `.env.example`):
 
 ```bash
-export OPENAI_API_KEY=sk-your-key   # never commit this value
+docker compose -f docker-compose.yml up -d   # Qdrant + Neo4j
+export OPENAI_API_KEY=sk-your-key            # real LLM/embeddings (module 03+)
 ```
 
 ## Quick validation
 
-Run the full offline smoke suite (covers modules 01, 02, 04–10 and shared state):
+Run the full offline smoke suite (all 64 modules):
 
 ```bash
 pytest
 ```
 
-Module 03 is validated separately — it requires `OPENAI_API_KEY` (see below).
+Every module runs offline by default. Tests strip API keys and service URLs automatically.
 
 ---
 
-## Exercise catalog
+## Exercise catalog — On-ramp (01–10)
 
-| # | Module | Script | API key | Status |
-|---|--------|--------|---------|--------|
-| 01 | [State basics](01_state_basics/) | `hello_world.py` | No | Runnable |
-| 02 | [LangGraph basics](02_langgraph_basics/) | `basic_graph.py` | No | Runnable |
-| 03 | [LLM nodes](03_llm_nodes/) | `llm_node.py` | **Yes** | Runnable (needs key) |
-| 04 | [Routing & branches](04_routing_and_branches/) | `router.py` | No | Runnable |
-| 05 | [Tools](05_tools/) | `mock_tool.py` | No | Runnable |
-| 06 | [Memory basics](06_memory_basics/) | `memory.py` | No | Runnable |
-| 07 | [Qdrant integration](07_qdrant_integration/) | `mock_qdrant.py` | No | Placeholder |
-| 08 | [Graph memory (Neo4j)](08_graph_memory_neo4j/) | `mock_graph.py` | No | Placeholder |
-| 09 | [Multi-agent systems](09_multi_agent_systems/) | `agents.py` | No | Runnable |
-| 10 | [Full brain simulation](10_full_brain_simulation/) | `brain.py` | No | Stub |
+| # | Module | Entrypoint | API key | Status |
+|---|--------|------------|---------|--------|
+| 01 | [State basics](01_state_basics/) | `main.py` | No | Multi-stage pipeline + audit trail |
+| 02 | [LangGraph basics](02_langgraph_basics/) | `main.py` | No | 8-node graph with conditional routing |
+| 03 | [LLM nodes](03_llm_nodes/) | `main.py` | Optional | Preprocess → LLM → synthesize (offline fake) |
+| 04 | [Routing & branches](04_routing_and_branches/) | `main.py` | No | 4-way intent router graph |
+| 05 | [Tools](05_tools/) | `main.py` | No | Agent ↔ ToolNode loop |
+| 06 | [Memory basics](06_memory_basics/) | `main.py` | No | Episodic log in a graph |
+| 07 | [Qdrant integration](07_qdrant_integration/) | `main.py` | No | Embed → index → retrieve (Qdrant optional) |
+| 08 | [Graph memory (Neo4j)](08_graph_memory_neo4j/) | `main.py` | No | Org-graph traversal (Neo4j optional) |
+| 09 | [Multi-agent systems](09_multi_agent_systems/) | `main.py` | No | Planner → executor → critic loop |
+| 10 | [Full brain simulation](10_full_brain_simulation/) | `main.py` | No | Integrated mini brain (deepened in 64) |
 | — | [Shared utilities](shared/) | — | No | Library (no script) |
+
+**Run any module:**
+
+```bash
+python src/01_state_basics/main.py
+make run MODULE=01_state_basics
+```
 
 ---
 
@@ -143,171 +151,30 @@ best practices, references) — open it for the exact run command. Design ration
 
 ---
 
-## Run every script
+## Run on-ramp modules (01–10)
 
-### 01 — State basics
-
-```bash
-python src/01_state_basics/hello_world.py
-```
-
-**Expected output:**
-
-```
-{'message': 'hello | A | B'}
-```
-
-**What it teaches:** State is a dict passed through node functions that mutate and return it.
-
----
-
-### 02 — LangGraph basics
+Every on-ramp module uses `main.py` and prints a `=== MODULE NN: ... COMPLETE ===` banner.
 
 ```bash
-python src/02_langgraph_basics/basic_graph.py
+python src/01_state_basics/main.py   # multi-stage pipeline with audit trail
+python src/02_langgraph_basics/main.py   # 8-node conditional graph
+python src/03_llm_nodes/main.py   # offline by default; real LLM when OPENAI_API_KEY set
+python src/04_routing_and_branches/main.py   # 4-way intent router
+python src/05_tools/main.py   # agent ↔ ToolNode loop
+python src/06_memory_basics/main.py   # episodic memory graph
+python src/07_qdrant_integration/main.py   # vector index + search (Qdrant optional)
+python src/08_graph_memory_neo4j/main.py   # org graph traversal (Neo4j optional)
+python src/09_multi_agent_systems/main.py   # planner → executor → critic
+python src/10_full_brain_simulation/main.py   # integrated mini brain
 ```
 
-**Expected output:**
-
-```
-{'message': 'start -> A -> B'}
-```
-
-**What it teaches:** A `StateGraph` with two nodes (`A` → `B`) and compiled invocation.
-
----
-
-### 03 — LLM nodes (requires API key)
+**Optional backends** (after `docker compose -f docker-compose.yml up -d`):
 
 ```bash
-export OPENAI_API_KEY=sk-your-key
-python src/03_llm_nodes/llm_node.py
+export QDRANT_URL=http://localhost:6333
+export NEO4J_URI=bolt://localhost:7687
+export NEO4J_PASSWORD=please-change-me
 ```
-
-**Expected output:** A dict with an LLM-generated `response` field, for example:
-
-```
-{'response': 'Hello! How can I assist you today?'}
-```
-
-Exact text varies per model call. Without `OPENAI_API_KEY` the script exits with an
-OpenAI credentials error — this is expected.
-
-**What it teaches:** Calling `ChatOpenAI` from a node function.
-
----
-
-### 04 — Routing and branches
-
-```bash
-python src/04_routing_and_branches/router.py
-```
-
-**Expected output:**
-
-```
-{'intent': 'blocker'}
-```
-
-**What it teaches:** Conditional routing based on message content (`"block"` → blocker intent).
-
----
-
-### 05 — Tools
-
-```bash
-python src/05_tools/mock_tool.py
-```
-
-**Expected output:**
-
-```
-Slack sent: hello
-```
-
-**What it teaches:** A mock external tool (Slack) returning a formatted result.
-
----
-
-### 06 — Memory basics
-
-```bash
-python src/06_memory_basics/memory.py
-```
-
-**Expected output:**
-
-```
-[{'event': 'login'}]
-```
-
-**What it teaches:** In-memory event log with `write()` and `read()` helpers.
-
----
-
-### 07 — Qdrant integration (placeholder)
-
-```bash
-python src/07_qdrant_integration/mock_qdrant.py
-```
-
-**Expected output:**
-
-```
-Qdrant placeholder
-```
-
-**What it teaches:** Stub for future vector-database / embedding exercises.
-
----
-
-### 08 — Graph memory Neo4j (placeholder)
-
-```bash
-python src/08_graph_memory_neo4j/mock_graph.py
-```
-
-**Expected output:**
-
-```
-Neo4j placeholder
-```
-
-**What it teaches:** Stub for future graph-database / relationship exercises.
-
----
-
-### 09 — Multi-agent systems
-
-```bash
-python src/09_multi_agent_systems/agents.py
-```
-
-**Expected output:**
-
-```
-{'result': 'done'}
-```
-
-**What it teaches:** Planner → executor pipeline where each agent enriches shared state.
-
----
-
-### 10 — Full brain simulation (stub)
-
-```bash
-python src/10_full_brain_simulation/brain.py
-```
-
-**Expected output:**
-
-```
-Full Brain Simulation
-This will combine all systems together
-```
-
-**What it teaches:** Capstone placeholder that will eventually combine memory, tools,
-graph, LLM, and routing.
 
 ---
 
@@ -328,15 +195,15 @@ Validated by `pytest` via import check — no standalone script to run.
 
 ```bash
 for script in \
-  src/01_state_basics/hello_world.py \
-  src/02_langgraph_basics/basic_graph.py \
-  src/04_routing_and_branches/router.py \
-  src/05_tools/mock_tool.py \
-  src/06_memory_basics/memory.py \
-  src/07_qdrant_integration/mock_qdrant.py \
-  src/08_graph_memory_neo4j/mock_graph.py \
-  src/09_multi_agent_systems/agents.py \
-  src/10_full_brain_simulation/brain.py; do
+  src/01_state_basics/main.py \
+  src/02_langgraph_basics/main.py \
+  src/04_routing_and_branches/main.py \
+  src/05_tools/main.py \
+  src/06_memory_basics/main.py \
+  src/07_qdrant_integration/main.py \
+  src/08_graph_memory_neo4j/main.py \
+  src/09_multi_agent_systems/main.py \
+  src/10_full_brain_simulation/main.py; do
   echo "=== $script ==="
   python "$script"
 done
@@ -346,7 +213,7 @@ Then run the LLM module separately when you have a key:
 
 ```bash
 export OPENAI_API_KEY=sk-your-key
-python src/03_llm_nodes/llm_node.py
+python src/03_llm_nodes/main.py
 ```
 
 ---

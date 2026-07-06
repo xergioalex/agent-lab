@@ -47,7 +47,7 @@ message roles in order, tool-call names invoked, message count — explicitly
 excluding anything nondeterministic (ids, timestamps). Two runs of the same
 deterministic input should produce **identical snapshots**; that equality
 check is what should live in a test, not a comparison of raw text. See
-`snapshot()` in `src/55_testing_agents/testing_agents.py`.
+`snapshot()` in `src/55_testing_agents/main.py`.
 
 ## Pattern 3: Structural Assertions
 
@@ -59,7 +59,7 @@ Assert invariants that must hold regardless of exact wording:
 
 These catch real bugs (malformed messages, runaway loops) without caring what
 the model actually said. See `structural_checks()` in
-`src/55_testing_agents/testing_agents.py`.
+`src/55_testing_agents/main.py`.
 
 ## Pattern 4: Golden Sets and Scorers
 

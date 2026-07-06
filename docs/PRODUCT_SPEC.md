@@ -18,10 +18,10 @@ coherent path from "hello state" to a working agent operating system.
 Agent Lab is a **progressive learning laboratory** — not a deployed product. It
 delivers:
 
-1. **Ten numbered modules** (`01`–`10`) that build on each other
-2. **Runnable Python exercises** demonstrating one concept per module
-3. **Per-module READMEs** explaining the concept before the code
-4. **A capstone** (`10_full_brain_simulation`) that combines all systems
+1. **Sixty-four numbered modules** (`01`–`64`) in a progressive curriculum
+2. **Runnable `main.py` exercises** — offline-first with optional real backends
+3. **Per-module READMEs** with objectives, architecture diagrams, and run commands
+4. **On-ramp capstone** (`10`) and **full capstone** (`64`) integrating all subsystems
 
 ## Success Criteria
 
@@ -34,8 +34,7 @@ delivers:
 
 - Production deployment or hosting
 - A polished CLI or web UI
-- Complete implementations of Qdrant, Neo4j, or Slack integrations (mocks/placeholders
-  are used where external services would be required)
+- Optional real Qdrant/Neo4j via Docker — exercises default to in-memory fakes
 - Replacing official LangGraph or LangChain documentation
 
 ## Product Positioning

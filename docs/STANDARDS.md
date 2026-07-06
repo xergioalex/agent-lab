@@ -2,47 +2,62 @@
 
 ## Module Structure
 
-- Modules are numbered `01` through `10` with zero-padded prefixes for sort order.
+- Modules are numbered `01` through `64` with zero-padded prefixes for sort order.
 - Each module folder name uses `snake_case` describing the topic.
-- Every module **MUST** have a `README.md` with: Concept, Key idea, Exercise/Goal.
-- Exercise scripts live at the module root, not in subpackages.
+- Every module **MUST** have a `README.md` with objectives, theory, run command, and challenges.
+- Every module **MUST** expose exactly one exercise entrypoint: `main.py` at the module root.
 
 ## Python Conventions
 
 - Python 3.10+ assumed (for `TypedDict` and modern typing).
 - Use `from typing import TypedDict` for graph state definitions.
 - Prefer explicit dict returns from LangGraph nodes: `return {"field": value}`.
-- Keep exercises short and readable — this is a learning repo, not production code.
+- Every `main.py` **SHOULD** define `main()` and guard with `if __name__ == "__main__":`.
+- Import shared infrastructure from `src.shared`; gate real backends behind `get_settings()`.
 
 ## Naming
 
 | Element | Convention | Example |
 |---------|------------|---------|
 | Module folders | `NN_topic_name` | `04_routing_and_branches` |
-| Exercise files | `snake_case.py` | `basic_graph.py`, `hello_world.py` |
-| Node functions | single letter or descriptive | `a`, `b`, `call_llm`, `router` |
+| Exercise file | `main.py` (fixed) | `src/04_routing_and_branches/main.py` |
+| Node functions | descriptive | `classify`, `call_llm`, `route_intent` |
 | State fields | `snake_case` | `message`, `intent`, `response` |
+
+## Running Exercises
+
+```bash
+python src/01_state_basics/main.py
+make run MODULE=01_state_basics
+```
+
+Optional backends (Qdrant, Neo4j):
+
+```bash
+docker compose -f docker-compose.yml up -d
+# set QDRANT_URL / NEO4J_URI in .env — see .env.example
+```
 
 ## Import Order
 
 1. Standard library
-2. Third-party (`langgraph`, `langchain_openai`)
-3. Local/shared (when introduced)
+2. Third-party (`langgraph`, `langchain_core`)
+3. Local/shared (`src.shared`)
 
 Blank line between groups.
 
 ## Error Handling
 
-- Early modules: minimal — let exceptions surface for learning.
-- Mock integrations (`07`, `08`): print placeholders; do not require live services.
-- LLM modules (`03+`): document that missing `OPENAI_API_KEY` will fail at runtime.
+- Exercises use `get_logger` for structured output; let unexpected errors surface.
+- Real service imports (`qdrant_client`, `neo4j`) must be **lazy** inside configured branches.
+- All modules run offline by default via deterministic fakes in `src.shared`.
 
 ## Forbidden Patterns
 
 - Do not commit API keys or `.env` files.
 - Do not add cross-imports between numbered modules (breaks isolated learning).
-- Do not convert exercises into a pip-installable package without an explicit plan.
-- Do not add heavy frameworks (web servers, databases) without updating docs and tests.
+- Do not use placeholder-only scripts (`print("stub")`) in the on-ramp.
+- Do not name exercise files anything other than `main.py`.
 
 ## Documentation
 

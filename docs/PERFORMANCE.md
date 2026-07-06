@@ -38,7 +38,7 @@ as forward-looking for production implementations.
 Not required for current exercises. When the capstone matures:
 
 ```bash
-python -m cProfile -s cumulative src/10_full_brain_simulation/brain.py
+python -m cProfile -s cumulative src/10_full_brain_simulation/main.py
 ```
 
 ## Budgets (recommended for capstone)
