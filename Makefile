@@ -30,15 +30,15 @@ format:  ## Auto-format with ruff
 typecheck:  ## Type-check the shared library with mypy (advisory)
 	@mypy src/shared || { echo ">> mypy not installed? run: pip install mypy"; exit 1; }
 
-run:  ## Run a module script, e.g. `make run MODULE=01_state_basics/hello_world.py`
-	@test -n "$(MODULE)" || { echo "Usage: make run MODULE=<folder>/<script>.py"; exit 1; }
-	$(PY) src/$(MODULE)
+run:  ## Run a module, e.g. `make run MODULE=01_state_basics`
+	@test -n "$(MODULE)" || { echo "Usage: make run MODULE=<folder>"; exit 1; }
+	$(PY) src/$(MODULE)/main.py
 
 up:  ## Start optional backends (Qdrant + Neo4j) via docker compose
-	docker compose up -d
+	docker compose -f docker-compose.yml up -d
 
 down:  ## Stop optional backends
-	docker compose down
+	docker compose -f docker-compose.yml down
 
 check: test  ## Full check: tests (gate) + advisory lint + typecheck
 	-@ruff check src tests
