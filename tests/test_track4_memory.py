@@ -6,24 +6,11 @@ or external services are required -- every module here is offline-first and
 uses fixed clocks / seeded data so output is deterministic.
 """
 
-import subprocess
-import sys
-from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-def _run_script(relative: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, str(REPO_ROOT / relative)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+from tests.conftest import run_module
 
 
 def test_conversation_memory_runs():
-    result = _run_script("src/29_conversation_memory/conversation_memory.py")
+    result = run_module("29_conversation_memory")
     assert result.returncode == 0
     assert "buffer: 6 message(s) retained (all)" in result.stdout
     assert "window(n=3): 3 message(s) retained" in result.stdout
@@ -32,7 +19,7 @@ def test_conversation_memory_runs():
 
 
 def test_episodic_memory_runs():
-    result = _run_script("src/30_episodic_memory/episodic_memory.py")
+    result = run_module("30_episodic_memory")
     assert result.returncode == 0
     assert "replay (ascending):" in result.stdout
     assert "tick=1 id=1 event='user logged in'" in result.stdout
@@ -42,7 +29,7 @@ def test_episodic_memory_runs():
 
 
 def test_semantic_memory_runs():
-    result = _run_script("src/31_semantic_memory/semantic_memory.py")
+    result = run_module("31_semantic_memory")
     assert result.returncode == 0
     assert "query='What is the capital of France?'" in result.stdout
     assert "fact='Paris is the capital of France.'" in result.stdout
@@ -50,7 +37,7 @@ def test_semantic_memory_runs():
 
 
 def test_procedural_memory_runs():
-    result = _run_script("src/32_procedural_memory/procedural_memory.py")
+    result = run_module("32_procedural_memory")
     assert result.returncode == 0
     assert "matched procedure='reset_password'" in result.stdout
     assert "matched procedure='file_bug_report'" in result.stdout
@@ -58,7 +45,7 @@ def test_procedural_memory_runs():
 
 
 def test_memory_writer_runs():
-    result = _run_script("src/33_memory_writer/memory_writer.py")
+    result = run_module("33_memory_writer")
     assert result.returncode == 0
     assert "extracted 5 candidate(s)" in result.stdout
     assert "conversation: 2 item(s)" in result.stdout
@@ -69,7 +56,7 @@ def test_memory_writer_runs():
 
 
 def test_memory_retrieval_runs():
-    result = _run_script("src/34_memory_retrieval/memory_retrieval.py")
+    result = run_module("34_memory_retrieval")
     assert result.returncode == 0
     assert "query='How do I reset my password?'" in result.stdout
     assert "assembled context (budget=160 chars):" in result.stdout
@@ -78,7 +65,7 @@ def test_memory_retrieval_runs():
 
 
 def test_memory_scoring_runs():
-    result = _run_script("src/35_memory_scoring/memory_scoring.py")
+    result = run_module("35_memory_scoring")
     assert result.returncode == 0
     assert "now_tick=10" in result.stdout
     assert "total=0.423" in result.stdout
@@ -86,9 +73,7 @@ def test_memory_scoring_runs():
 
 
 def test_memory_consolidation_decay_runs():
-    result = _run_script(
-        "src/36_memory_consolidation_decay/memory_consolidation_decay.py"
-    )
+    result = run_module("36_memory_consolidation_decay")
     assert result.returncode == 0
     assert "consolidated into 3 trace(s):" in result.stdout
     assert (

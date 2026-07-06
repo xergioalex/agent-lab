@@ -5,24 +5,11 @@ subprocess, assert a clean exit and a stable substring in stdout. No API keys
 or external services are required — every module here is offline-first.
 """
 
-import subprocess
-import sys
-from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-def _run_script(relative: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, str(REPO_ROOT / relative)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+from tests.conftest import run_module
 
 
 def test_observability_runs():
-    result = _run_script("src/53_observability/observability.py")
+    result = run_module("53_observability")
     assert result.returncode == 0
     assert "run-tree:" in result.stdout
     assert "metrics: nodes=3" in result.stdout
@@ -30,7 +17,7 @@ def test_observability_runs():
 
 
 def test_evaluations_runs():
-    result = _run_script("src/54_evaluations/evaluations.py")
+    result = run_module("54_evaluations")
     assert result.returncode == 0
     assert "=== SCORECARD ===" in result.stdout
     assert "total=5 passed=4 pass_rate=80.0%" in result.stdout
@@ -38,7 +25,7 @@ def test_evaluations_runs():
 
 
 def test_testing_agents_runs():
-    result = _run_script("src/55_testing_agents/testing_agents.py")
+    result = run_module("55_testing_agents")
     assert result.returncode == 0
     assert "snapshots_stable_across_runs=True" in result.stdout
     assert "[PASS] has_at_least_one_message" in result.stdout
@@ -46,7 +33,7 @@ def test_testing_agents_runs():
 
 
 def test_security_runs():
-    result = _run_script("src/56_security/security.py")
+    result = run_module("56_security")
     assert result.returncode == 0
     assert "NEUTRALIZED" in result.stdout
     assert "REJECTED (validation)" in result.stdout
@@ -54,7 +41,7 @@ def test_security_runs():
 
 
 def test_cost_and_multitenancy_runs():
-    result = _run_script("src/57_cost_and_multitenancy/cost_and_multitenancy.py")
+    result = run_module("57_cost_and_multitenancy")
     assert result.returncode == 0
     assert "isolated=True" in result.stdout
     assert "=== COST REPORT ===" in result.stdout
@@ -62,7 +49,7 @@ def test_cost_and_multitenancy_runs():
 
 
 def test_deployment_runs():
-    result = _run_script("src/58_deployment/deployment.py")
+    result = run_module("58_deployment")
     assert result.returncode == 0
     assert "[PASS] compose_defines_qdrant" in result.stdout
     assert "[PASS] ci_runs_offline_pytest" in result.stdout
